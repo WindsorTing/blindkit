@@ -1,0 +1,7 @@
+name: blindkit
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pillow
+  - qrcode

@@ -18,6 +18,9 @@ Features
 """
 
 import argparse, csv, datetime, hashlib, json, os, pathlib, random, re, shutil, sys, zipfile
+import pandas as pd
+from pathlib import Path
+from collections import Counter
 
 # ---------- Optional deps ----------
 try:
@@ -196,79 +199,87 @@ def _load_legacy_assignments(path: str, allowed_agents):
     return legacy
 
 def cmd_plan_physiology(a):
-    br = pathlib.Path(a.blinder_root).resolve()
-    ensure_dirs(br, ["configs","audit"])
-    ans = animals_list(br)
-    if not ans: raise SystemExit("[!] No animals registered (BLINDER).")
+    blinder_dir = Path(a.blinder_root)
+    plan_path = blinder_dir / "configs" / "physiology_plan.csv"
+    planning_dir = plan_path.parent
+    planning_dir.mkdir(parents=True, exist_ok=True)
 
-    import random
-    rng = random.Random(int(a.date_seed))
-    A,B = a.agents
+    # Load animal list from JSONL file
+    registered_df = pd.read_json(a.reganimals_list, lines=True)
+    registered_animals = set(registered_df["animal"])
 
-    legacy = {}
-    legacy_path = a.legacy_json or a.legacy_csv
-    if legacy_path:
-        legacy = _load_legacy_assignments(legacy_path, {A,B})
-        unknown = sorted([k for k in legacy.keys() if k not in ans])
-        if unknown and not a.allow_unregistered:
-            raise SystemExit(f"[!] Legacy file references unregistered animals: {', '.join(unknown)} (use --allow-unregistered to include)")
-        if unknown and a.allow_unregistered:
-            ans = sorted(set(ans) | set(unknown))
+    # Load agent list from text file (one agent per line)
+    agent_list = a.agents
+    seed = a.date_seed
 
-    remaining = [an for an in sorted(ans) if an not in legacy]
-    rng.shuffle(remaining)
+    unique_agents = sorted(set(agent_list))
+    if len(unique_agents) <2: 
+        print("Error: you must provide at least two unique agents.")
+        return
 
-    count = {A: sum(1 for v in legacy.values() if v==A),
-             B: sum(1 for v in legacy.values() if v==B)}
+    # Load existing plan if available
+    if plan_path.exists():
+        existing_df = pd.read_csv(plan_path)
+        assigned_animals = set(existing_df["animal"])
+        print(f"Loaded existing plan with {len(assigned_animals)} assigned animals.")
+    else:
+        existing_df = pd.DataFrame()
+        assigned_animals = set()
+        print("No existing plan found. Starting fresh.")
 
-    total = len(ans)
-    targetA = total//2
-    targetB = total - targetA
+    # Determine unassigned animals
+    unassigned_animals = sorted(registered_animals - assigned_animals)
+    if not unassigned_animals:
+        print("No unassigned animals found. Plan is up to date.")
+        return
 
-    assign = {**legacy}
-    for an in remaining:
-        if count[A] < targetA and count[B] < targetB:
-            needA = targetA - count[A]
-            needB = targetB - count[B]
-            choice = A if needA >= needB else B
-        elif count[A] < targetA:
-            choice = A
-        elif count[B] < targetB:
-            choice = B
-        else:
-            choice = A if count[A] <= count[B] else B
-        assign[an] = choice
-        count[choice] += 1
+    print(f"Found {len(unassigned_animals)} unassigned animals: {unassigned_animals}")
 
-    impossible = (count[A] != targetA or count[B] != targetB)
+    # Hash inputs to generate deterministic seed
+    hash_input = "".join(sorted(unassigned_animals)) + "".join(sorted(unique_agents)) + str(seed)
+    hashed_seed = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16) % (10 ** 8)
+    random.seed(hashed_seed)
 
-    order = sorted(assign.keys())
-    rng.shuffle(order)
+    # Shuffle agents and assign
+    # agent_cycle = agent_list * ((len(unassigned_animals) // len(agent_list)) + 1)
+    # random.shuffle(agent_cycle)
+    # agent_assignments = agent_cycle[:len(unassigned_animals)]
 
-    plan = {"date_seed": a.date_seed, "agents":[A,B], "assignments": assign,
-            "legacy_source": legacy_path or "", "legacy_n": len(legacy),
-            "registered_n": len(ans), "final_counts": count, "equal_split_possible": (not impossible),
-            "note": "If equal_split_possible==false, legacy assignments forced an imbalance."}
+    # Create balanced group assignment
+    n = len(unassigned_animals)
+    n_agents = len(unique_agents)
+    base_count = n // n_agents
+    remainder = n % n_agents
 
-    (br/"configs"/"physiology_plan.json").write_text(json.dumps(plan, indent=2))
-    with open(br/"configs"/"physiology_plan.csv","w",newline="",encoding="utf-8") as f:
-        w=csv.writer(f); w.writerow(["animal","agent","rank","legacy"])
-        for i, an in enumerate(order):
-            w.writerow([an, assign[an], i+1, "Y" if an in legacy else ""])
+    # Create balanced agent list
+    agent_counts = [base_count + (1 if i < remainder else 0) for i in range(n_agents)]
+    balanced_agents = []
+    for agent, count in zip(unique_agents, agent_counts):
+        balanced_agents.extend([agent] * count)
+    random.shuffle(balanced_agents)
 
-    _audit_write(
-        br, "plan-physiology",
-        date_seed=a.date_seed,
-        agents=",".join(a.agents),
-        animals=len(ans),
-        legacy=len(legacy),
-        equal_split_possible=(not impossible),
-        counts=f"{count[A]}/{count[B]}"
-    )
+    # Create new assignment rows
+    new_rows = []
+    for animal, agent in zip(unassigned_animals, balanced_agents):
+        new_rows.append({
+            "animal": animal,
+            "agent": agent
+        })
 
-    if impossible:
-        print(f"[!] Note: perfect 50/50 split not achievable due to legacy constraints (A={count[A]}, B={count[B]}).")
-    print("[+] Physiology plan saved at BLINDER configs")
+    new_df = pd.DataFrame(new_rows)
+    full_plan = pd.concat([existing_df, new_df], ignore_index=True)
+    full_plan.to_csv(plan_path, index=False)
+
+    full_plan_for_json = dict(zip(full_plan["animal"], full_plan["agent"]))
+
+    plan_json = {"date_seed": a.date_seed, "agents": ["CNO, Saline"], "assignments": full_plan_for_json,
+            "final_counts": full_plan['agent'].value_counts().to_dict()}
+
+    (blinder_dir/"configs"/"physiology_plan.json").write_text(json.dumps(plan_json, indent=2))
+
+    # print(f"Appended {len(new_df)} new assignments. Total now: {len(full_plan)} animals.")
+    print(f"Appended {len(new_df)} new assignments.")
+    print(f"Final agent distribution: {dict(Counter(full_plan['agent']))}")
 
 # ---------- Overlays (BLINDER) ----------
 _MICRO_ALPH="23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -331,7 +342,7 @@ def cmd_overlay_physiology(a):
     plan_path = br/"configs"/"physiology_plan.json"
     agent="?"
     if plan_path.exists():
-        agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
+        agent = json.loads(plan_path.read_text())["agent"].get(animal,"?")
         print(f"[Blinder‑only] Planned agent for {animal}: {agent}")
     dummy,c1,c2,label = overlay_common(animal,"PHYSIOLOGY",syringe_id)
     ts0=iso_now()
@@ -818,7 +829,7 @@ def main():
 
     # Planning
     p=sp.add_parser("plan-behavior"); p.add_argument("--blinder-root", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.set_defaults(func=cmd_plan_behavior)
-    p=sp.add_parser("plan-physiology"); p.add_argument("--blinder-root", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.add_argument("--legacy-json"); p.add_argument("--legacy-csv"); p.add_argument("--allow-unregistered", action="store_true"); p.set_defaults(func=cmd_plan_physiology)
+    p=sp.add_parser("plan-physiology"); p.add_argument("--blinder-root", required=True); p.add_argument("--reganimals-list", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.add_argument("--legacy-json"); p.add_argument("--legacy-csv"); p.add_argument("--allow-unregistered", action="store_true"); p.set_defaults(func=cmd_plan_physiology)
 
     # Overlays
     p=sp.add_parser("overlay-behavior"); p.add_argument("--blinder-root", required=True); p.set_defaults(func=cmd_overlay_behavior)

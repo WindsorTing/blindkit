@@ -316,12 +316,12 @@ def cmd_overlay_behavior(a):
     lbl.write_text(f"ANIMAL:{animal}\nSTAGE:BEHAVIOR\nSESSION:{session}\nDUMMY:{dummy}\nCHECK1:{c1}\nCHECK2:{c2}\nSYRINGE:{syringe_id}\nLABEL:{label}\nTS:{ts0}\n")
     if HAS_QR:
         payload=json.dumps({"animal":animal,"stage":"BEHAVIOR","session":session,"dummy":dummy,"check1":c1,"check2":c2,"syringe_id":syringe_id,"label_id":label,"ts":ts0}, sort_keys=True)
-        qrcode.make(payload).save(br/"labels"/f"{animal}_BEH{session}_{label}.png")
+        qrcode.make(label).save(br/"labels"/f"{animal}_BEH{session}_{label}.png")
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"BEHAVIOR","session":session,
                                  "dummy":dummy,"check1":c1,"check2":c2,"syringe_id":syringe_id,
                                  "label_id":label,"status":"issued"})
     _audit_write(br, "overlay-behavior", animal_id=animal, session=session, label_id=label, syringe_id=syringe_id)
-    print("[✓] BEHAVIOR overlay issued at BLINDER root.")
+    print("[+] BEHAVIOR overlay issued at BLINDER root.")
 
 def cmd_overlay_physiology(a):
     br = pathlib.Path(a.blinder_root).resolve()
@@ -339,12 +339,12 @@ def cmd_overlay_physiology(a):
     lbl.write_text(f"ANIMAL:{animal}\nSTAGE:PHYSIOLOGY\nDUMMY:{dummy}\nCHECK1:{c1}\nCHECK2:{c2}\nSYRINGE:{syringe_id}\nLABEL:{label}\nTS:{ts0}\n")
     if HAS_QR:
         payload=json.dumps({"animal":animal,"stage":"PHYSIOLOGY","dummy":dummy,"check1":c1,"check2":c2,"syringe_id":syringe_id,"label_id":label,"ts":ts0}, sort_keys=True)
-        qrcode.make(payload).save(br/"labels"/f"{animal}_PHYS_{label}.png")
+        qrcode.make(label).save(br/"labels"/f"{animal}_PHYS_{label}.png")
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"PHYSIOLOGY","session":None,
                                  "dummy":dummy,"check1":c1,"check2":c2,"syringe_id":syringe_id,
                                  "label_id":label,"status":"issued","agent":agent})
     _audit_write(br, "overlay-physiology", animal_id=animal, label_id=label, syringe_id=syringe_id, agent=agent)
-    print("[✓] PHYSIOLOGY overlay issued at BLINDER root.")
+    print("[+] PHYSIOLOGY overlay issued at BLINDER root.")
 
 def cmd_overlay_aliquot(a):
     br = pathlib.Path(a.blinder_root).resolve()
@@ -357,12 +357,12 @@ def cmd_overlay_aliquot(a):
     lbl.write_text(f"D:{dummy}\nC1:{c1}\nC2:{c2}\nCID:{aliquot_id}\nL:{label}\nTS:{ts0}\n")
     if HAS_QR:
         payload=json.dumps({"animal":animal,"stage":"VIRAL","dummy":dummy,"check1":c1,"check2":c2,"syringe_id":aliquot_id,"label_id":label,"ts":ts0}, sort_keys=True)
-        qrcode.make(payload).save(br/"labels"/f"{animal}_VIRAL_{label}.png")
+        qrcode.make(label).save(br/"labels"/f"{animal}_VIRAL_{label}.png")
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"VIRAL","session":None,
                                  "dummy":dummy,"check1":c1,"check2":c2,"syringe_id":aliquot_id,
                                  "label_id":label,"status":"issued"})
     _audit_write(br, "overlay-aliquot", animal_id=animal, label_id=label, aliquot_id=aliquot_id)
-    print("[✓] VIRAL micro‑label issued at BLINDER root.")
+    print("[+] VIRAL micro‑label issued at BLINDER root.")
 
 # ---------- Experimenter: inject-scan → receipt ----------
 def cmd_inject_scan(a):

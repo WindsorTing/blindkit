@@ -15,13 +15,10 @@ conda activate blindkit
 conda deactivate blindkit
 ```
 
-## Initialize your repo (on your laptop)
+## Initialize your Repository (on your laptop)
 Create only the blinder tree:
 ```bash
-python blindkit_v4_0.py init-dual \
-  --study-id STUDY_X \
-  --blinder-root ./study_X_blinder \
-  --only blinder
+python blindkit_v4_0.py init-dual --study-id reticulospinal_inhibition --blinder-root "path to folder on blinder laptop" --only blinder
 ```
 
 ## Register animals

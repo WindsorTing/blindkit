@@ -342,7 +342,7 @@ def cmd_overlay_physiology(a):
     plan_path = br/"configs"/"physiology_plan.json"
     agent="?"
     if plan_path.exists():
-        agent = json.loads(plan_path.read_text())["agent"].get(animal,"?")
+        agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
         print(f"[Blinder‑only] Planned agent for {animal}: {agent}")
     dummy,c1,c2,label = overlay_common(animal,"PHYSIOLOGY",syringe_id)
     ts0=iso_now()

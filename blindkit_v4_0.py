@@ -261,14 +261,17 @@ def _load_legacy_assignments(path: str, allowed_agents):
     return legacy
 
 def cmd_plan_physiology(a): # needs to integrate versioned json
+    seed = a.date_seed
     blinder_dir = Path(a.blinder_root)
-    plan_path = blinder_dir / "configs" / "physiology_plan.csv"
+    plan_path = blinder_dir / "configs" / "physiology_plan_*.json"
     planning_dir = plan_path.parent
+    versioned_json = blinder_dir / "configs" / f"physiology_plan_{seed}.json"
+
     planning_dir.mkdir(parents=True, exist_ok=True)
 
     # Load animal list from JSONL file
-    registered_df = pd.read_json(a.reganimals_list, lines=True)
-    registered_animals = set(registered_df["animal"])
+    # registered_df = pd.read_json(a.reganimals_list, lines=True)
+    # registered_animals = set(registered_df["animal"])
 
     # Load agent list from text file (one agent per line)
     agent_list = a.agents
@@ -279,18 +282,24 @@ def cmd_plan_physiology(a): # needs to integrate versioned json
         print("Error: you must provide at least two unique agents.")
         return
 
-    # Load existing plan if available
+    # Load existing plans if available
     if plan_path.exists():
-        existing_df = pd.read_csv(plan_path)
-        assigned_animals = set(existing_df["animal"])
-        print(f"Loaded existing plan with {len(assigned_animals)} assigned animals.")
+        existing_animals = set()
+        for plan_file in planning_dir.glob("physiology_plan_*.json"):
+            with open(plan_file) as f:
+                plan = json.load(f)
+                existing_animals.update(plan.get("assignments", {}).keys())
+        # existing_df = pd.read_csv(plan_path)
+        # assigned_animals = set(existing_df["animal"])
+        print(f"Loaded existing plan with {len(existing_animals)} assigned animals.")
     else:
         existing_df = pd.DataFrame()
-        assigned_animals = set()
+        existing_animals = set()
         print("No existing plan found. Starting fresh.")
 
     # Determine unassigned animals
-    unassigned_animals = sorted(registered_animals - assigned_animals)
+    # unassigned_animals = sorted(registered_animals - assigned_animals)
+    unassigned_animals = sorted(registered_animals - existing_animals)
     if not unassigned_animals:
         print("No unassigned animals found. Plan is up to date.")
         return
@@ -321,27 +330,44 @@ def cmd_plan_physiology(a): # needs to integrate versioned json
     random.shuffle(balanced_agents)
 
     # Create new assignment rows
-    new_rows = []
-    for animal, agent in zip(unassigned_animals, balanced_agents):
-        new_rows.append({
-            "animal": animal,
-            "agent": agent
-        })
+    # new_rows = []
+    # for animal, agent in zip(unassigned_animals, balanced_agents):
+    #     new_rows.append({
+    #         "animal": animal,
+    #         "agent": agent
+    #     })
 
-    new_df = pd.DataFrame(new_rows)
-    full_plan = pd.concat([existing_df, new_df], ignore_index=True)
-    full_plan.to_csv(plan_path, index=False)
+    assignments = {
+        animal: {
+            "agent": agent,
+            "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+        }
+        for animal, agent in zip(unassigned_animals, balanced_agents)
+    }
 
-    full_plan_for_json = dict(zip(full_plan["animal"], full_plan["agent"]))
+    output = {
+        "seed": seed,
+        "assignments": assignments
+    }
 
-    plan_json = {"date_seed": a.date_seed, "agents": ["CNO, Saline"], "assignments": full_plan_for_json,
-            "final_counts": full_plan['agent'].value_counts().to_dict()}
+    # new_df = pd.DataFrame(new_rows)
+    # full_plan = pd.concat([existing_df, new_df], ignore_index=True)
+    # full_plan.to_csv(plan_path, index=False)
 
-    (blinder_dir/"configs"/"physiology_plan.json").write_text(json.dumps(plan_json, indent=2))
+    versioned_json.write_text(json.dumps(output, indent=2))
+    print(f"Saved to {versioned_json}")
+    print(f"Final agent distribution: {Counter([a['agent'] for a in assignments.values()])}")
+
+    # full_plan_for_json = dict(zip(full_plan["animal"], full_plan["agent"]))
+
+    # plan_json = {"date_seed": a.date_seed, "agents": ["CNO, Saline"], "assignments": full_plan_for_json,
+    #         "final_counts": full_plan['agent'].value_counts().to_dict()}
+
+    # (blinder_dir/"configs"/"physiology_plan.json").write_text(json.dumps(plan_json, indent=2))
 
     # print(f"Appended {len(new_df)} new assignments. Total now: {len(full_plan)} animals.")
-    print(f"Appended {len(new_df)} new assignments.")
-    print(f"Final agent distribution: {dict(Counter(full_plan['agent']))}")
+    # print(f"Appended {len(new_df)} new assignments.")
+    # print(f"Final agent distribution: {dict(Counter(full_plan['agent']))}")
 
 # ---------- Overlays (BLINDER) ----------
 _MICRO_ALPH="23456789ABCDEFGHJKLMNPQRSTUVWXYZ"

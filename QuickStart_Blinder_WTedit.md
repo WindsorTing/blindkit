@@ -40,14 +40,15 @@ Reproducible with YYYYMMDD seeds
 # This should be run only after two or more new animals have been registered using the above command.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
 
-python blindkit_v4_0.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDD --agents CNO saline --allow-unregistered
+python blindkit_v4_0.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline --allow-unregistered
 
+# Please use 24h time format for HHMM.
 # If legacy assignments (pre-blindkit) are present: add flag --legacy-json ./legacy_phys.json
 ```
 
 ### B: Behavior (2×A, 2×B per animal subset)
 ```bash
-python blindkit_v4_0.py plan-behavior --blinder-root "blinder folder path" --date-seed YYYYMMDD --agents CNO saline
+python blindkit_v4_0.py plan-behavior --blinder-root "blinder folder path" --date-seed YYYYMMDDHHMM --agents CNO saline
 ```
 
 ## Step 4: Generate Blinded Label Overlays

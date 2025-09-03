@@ -2,31 +2,16 @@
 
 > You manage the BLINDER repo on your laptop; the experimenter does not have access to it.
 
-## Environment (choose one)
-
-> Install the latest version of anaconda on laptop (see website for installation directions)
-
-**Conda (recommended)**
-> From Anaconda PowerShell Prompt:
-
-```bash
-conda create --name blindkit
-conda activate blindkit
-conda deactivate blindkit
-```
-
 ## Initialize your Repository (on your laptop)
 Create only the blinder tree:
 ```bash
-python blindkit_v4_0.py init-dual --study-id reticulospinal_inhibition --blinder-root "path to folder on blinder laptop" --only blinder
+python blindkit_v4_0.py init-dual --study-id reticulospinal_inhibition --blinder-root "blinder folder path" --only blinder
 ```
 
-## Register animals
+## Register Animals
 ```bash
-python blindkit_v4_0.py register-animal \
-  --blinder-root ./study_X_blinder \
-  --animal-id RAT001 --sex F --weight 230g
-# repeat per animal
+python blindkit_v4_0.py register-animal --blinder-root "blinder folder path" --animal-id RAT001 --sex F --weight 230g
+# Repeat per animal
 ```
 
 ## Plans (reproducible with YYYYMMDD seeds)
@@ -40,23 +25,9 @@ python blindkit_v4_0.py plan-behavior \
 ```
 
 ### Physiology (50/50 cohort) — legacy‑aware
-Legacy CSV: `animal,agent` (header optional)  
-Legacy JSON: `{"RAT001":"A",...}` or `{"assignments":{"RAT001":"A",...}}`
 ```bash
-# Strict: fail if legacy has unknown animals
-python blindkit_v4_0.py plan-physiology \
-  --blinder-root ./study_X_blinder \
-  --date-seed 20250821 \
-  --agents A B \
-  --legacy-csv ./legacy_phys.csv
-
-# Lenient: allow legacy-only animals
-python blindkit_v4_0.py plan-physiology \
-  --blinder-root ./study_X_blinder \
-  --date-seed 20250821 \
-  --agents A B \
-  --legacy-json ./legacy_phys.json \
-  --allow-unregistered
+python blindkit_v4_0.py plan-physiology --blinder-root "blinder folder path" --date-seed YYYYMMDD --agents CNO saline --allow-unregistered
+# If legacy assignments (pre-blindkit) are present: add flag --legacy-json ./legacy_phys.json
 ```
 
 ## Overlays / Labels
@@ -65,7 +36,7 @@ python blindkit_v4_0.py plan-physiology \
 python blindkit_v4_0.py overlay-behavior --blinder-root ./study_X_blinder
 
 # Physiology (one per animal; echoes planned agent to console for blinder only)
-python blindkit_v4_0.py overlay-physiology --blinder-root ./study_X_blinder
+python blindkit_v4_0.py overlay-physiology --blinder-root "blinder folder path"
 
 # Viral aliquot micro-label (cap/side code input)
 python blindkit_v4_0.py overlay-aliquot --blinder-root ./study_X_blinder

@@ -144,26 +144,88 @@ def seeded_rng(date_seed: str, animal: str):
     import random
     return random.Random(base ^ ah)
 
-def cmd_plan_behavior(a):
-    br = pathlib.Path(a.blinder_root).resolve()
-    ensure_dirs(br, ["configs","audit"])
-    ans = animals_list(br)
-    if not ans: raise SystemExit("[!] No animals registered (BLINDER).")
-    A,B = a.agents
-    plan = {"date_seed": a.date_seed, "agents":[A,B], "sessions":4, "assignments":{}}
-    for an in sorted(ans):
-        seq=[A,A,B,B]; seeded_rng(a.date_seed, an).shuffle(seq)
-        plan["assignments"][an] = [{"session": i+1, "agent": seq[i]} for i in range(4)]
-    out_json = br / "configs" / "behavior_plan.json"
-    out_csv  = br / "configs" / "behavior_plan.csv"
-    out_json.write_text(json.dumps(plan, indent=2))
-    with open(out_csv, "w", newline="", encoding="utf-8") as f:
-        w=csv.writer(f); w.writerow(["animal","session","agent"])
-        for an in sorted(plan["assignments"]):
-            for r in plan["assignments"][an]:
-                w.writerow([an, r["session"], r["agent"]])
-    _audit_write(br, "plan-behavior", date_seed=a.date_seed, agents=",".join(a.agents), animals=len(ans))
-    print("[+] Behavior plan saved at BLINDER configs")
+# def cmd_plan_behavior(a):
+#     br = pathlib.Path(a.blinder_root).resolve()
+#     ensure_dirs(br, ["configs","audit"])
+#     ans = animals_list(br)
+#     if not ans: raise SystemExit("[!] No animals registered (BLINDER).")
+#     A,B = a.agents
+#     plan = {"date_seed": a.date_seed, "agents":[A,B], "sessions":4, "assignments":{}}
+#     for an in sorted(ans):
+#         seq=[A,A,B,B]; seeded_rng(a.date_seed, an).shuffle(seq)
+#         plan["assignments"][an] = [{"session": i+1, "agent": seq[i]} for i in range(4)]
+#     out_json = br / "configs" / "behavior_plan.json"
+#     out_csv  = br / "configs" / "behavior_plan.csv"
+#     out_json.write_text(json.dumps(plan, indent=2))
+#     with open(out_csv, "w", newline="", encoding="utf-8") as f:
+#         w=csv.writer(f); w.writerow(["animal","session","agent"])
+#         for an in sorted(plan["assignments"]):
+#             for r in plan["assignments"][an]:
+#                 w.writerow([an, r["session"], r["agent"]])
+#     _audit_write(br, "plan-behavior", date_seed=a.date_seed, agents=",".join(a.agents), animals=len(ans))
+#     print("[+] Behavior plan saved at BLINDER configs")
+
+def cmd_plan_behavior(a): # needs stress testing
+    blinder_dir = Path(a.blinder)
+    planning_dir = blinder_dir / "configs"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load registered animals
+    registered_df = pd.read_json(a.animals, lines=True)
+    registered_animals = set(registered_df["animal"])
+
+    # Load agent list
+    with open(a.agents) as f:
+        agent_list = [line.strip() for line in f if line.strip()]
+        unique_agents = sorted(set(agent_list))
+        seed = a.seed
+
+    if len(unique_agents) != 2:
+        print("Error: You must provide exactly two agents for 2x2 design.")
+        return
+
+    # Compose versioned output path based on seed
+    versioned_json = planning_dir / f"behavior_plan_{seed}.json"
+
+    # Load previous assignments
+    existing_animals = set()
+    for plan_file in planning_dir.glob("behavior_plan_*.json"):
+        with open(plan_file) as f:
+            plan = json.load(f)
+    existing_animals.update(plan.get("assignments", {}).keys())
+
+    # Filter only unassigned animals
+    unassigned_animals = sorted(registered_animals - existing_animals)
+    if not unassigned_animals:
+        print("No unassigned animals found. All have been previously planned.")
+        return
+
+    print(f"Planning {len(unassigned_animals)} new animals for seed {seed}: {unassigned_animals}")
+
+    # Hash-based seed
+    hash_input = "".join(sorted(unassigned_animals)) + "".join(unique_agents) + str(seed)
+    hashed_seed = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16) % (10 ** 8)
+    random.seed(hashed_seed)
+
+    # 4 sessions per animal, 2 of each agent in random order
+    assignments = {}
+    for animal in unassigned_animals:
+        sessions = [unique_agents[0]] * 2 + [unique_agents[1]] * 2
+        random.shuffle(sessions)
+        assignments[animal] = {
+        f"session_{i+1}": agent for i, agent in enumerate(sessions)
+    }
+
+    # Save
+    output = {
+    "seed": seed,
+    "assignments": assignments
+    }
+    versioned_json.write_text(json.dumps(output, indent=2))
+    print(f"Saved to {versioned_json}")
+    all_agents = sum([list(s.values()) for s in assignments.values()], [])
+    print(f"Final session distribution: {Counter(all_agents)}")
+
 
 def _load_legacy_assignments(path: str, allowed_agents):
     p = pathlib.Path(path)
@@ -198,7 +260,7 @@ def _load_legacy_assignments(path: str, allowed_agents):
             legacy[an] = ag
     return legacy
 
-def cmd_plan_physiology(a):
+def cmd_plan_physiology(a): # needs to integrate versioned json
     blinder_dir = Path(a.blinder_root)
     plan_path = blinder_dir / "configs" / "physiology_plan.csv"
     planning_dir = plan_path.parent

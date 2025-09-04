@@ -480,7 +480,7 @@ def cmd_overlay_physiology(a):
         qrcode.make(payload).save(br/"labels"/f"{animal}_PHYS_{label}.png")
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"PHYSIOLOGY","session":None,
                                  "syringe_underlay_id":syringe_underlay_id,
-                                 "label_id":label,"status":"issued","assignment":agent})
+                                 "status":"issued","assignment":agent})
     _audit_write(br, "overlay-physiology", animal_id=animal, label_id=label, syringe_id=syringe_underlay_id, agent=agent)
     print("[+] PHYSIOLOGY overlay issued at BLINDER root for animal ID " + animal + ".")
 

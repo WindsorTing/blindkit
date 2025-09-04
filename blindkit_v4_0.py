@@ -426,25 +426,63 @@ def cmd_overlay_behavior(a):
 def cmd_overlay_physiology(a):
     br = pathlib.Path(a.blinder_root).resolve()
     ensure_dirs(br, ["labels","media/photos","logs","configs","audit"])
-    animal = input("Animal ID: ").strip()
-    syringe_id = input("Base SYRINGE_ID (preparer sticker): ").strip()
-    plan_path = br/"configs"/"physiology_plan.json"
+    animal = input("Enter Animal ID: ").strip()
+    syringe_underlay_id = input("Underlay ID (number on syringe from CNO/saline solution preparer): ").strip()
+    plan_path = br/"configs"
     agent="?"
-    if plan_path.exists():
-        agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
-        print(f"[Blinder‑only] Planned agent for {animal}: {agent}")
-    dummy,c1,c2,label = overlay_common(animal,"PHYSIOLOGY",syringe_id)
+
+    # Load plans from pool of versioned JSONs
+    # if plan_path.exists():
+    #     agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
+    #     print(f"[Blinder‑only] Planned agent for {animal}: {agent}")
+    
+    # Load assigned animal list from versioned jsons if available
+    if os.path.exists(plan_path):
+        for filename in os.listdir(plan_path):
+            if not filename.endswith(".json"):
+                continue
+            filepath = os.path.join(plan_path, filename)
+            try:
+                with open(filepath, "r") as f:
+                    data = json.load(f)
+                assignments = data.get("assignments", {})
+                result = assignments.get(animal, "?")
+
+                if result != "?":  # found the animal
+                    agent = result
+                    found_file = filename
+                    break  # stop searching
+
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Skipping {filename}: {e}")
+
+        # existing_animals = set()
+        # for plan_file in plan_path.glob("physiology_plan_*.json"):
+        #     with open(plan_file) as f:
+        #         # plan = json.load(f)
+        #         agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
+        # existing_df = pd.read_csv(plan_path)
+        # assigned_animals = set(existing_df["animal"])
+        print(f"Scanned existing set of versioned jsons.")
+    else:
+        existing_df = pd.DataFrame()
+        existing_animals = set()
+        print("No existing plan found. Starting fresh.")
+
+    # dummy,c1,c2,label = overlay_common(animal,"PHYSIOLOGY",syringe_underlay_id)
+    label = agent['label']
+    
     ts0=iso_now()
     lbl = br/"labels"/f"{animal}_PHYS_{label}.txt"
-    lbl.write_text(f"ANIMAL:{animal}\nSTAGE:PHYSIOLOGY\nDUMMY:{dummy}\nCHECK1:{c1}\nCHECK2:{c2}\nSYRINGE:{syringe_id}\nLABEL:{label}\nTS:{ts0}\n")
+    lbl.write_text(f"ANIMAL:{animal}\nSTAGE:PHYSIOLOGY\nSYRINGE_UNDERLAY:{syringe_underlay_id}\nASSIGNMENT:{agent}\nTS:{ts0}\n")
     if HAS_QR:
-        payload=json.dumps({"animal":animal,"stage":"PHYSIOLOGY","dummy":dummy,"check1":c1,"check2":c2,"syringe_id":syringe_id,"label_id":label,"ts":ts0}, sort_keys=True)
-        qrcode.make(label).save(br/"labels"/f"{animal}_PHYS_{label}.png")
+        payload=json.dumps({"animal":animal,"stage":"PHYSIOLOGY","syringe_blinded_label":label,"ts":ts0}, sort_keys=True)
+        qrcode.make(payload).save(br/"labels"/f"{animal}_PHYS_{label}.png")
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"PHYSIOLOGY","session":None,
-                                 "dummy":dummy,"check1":c1,"check2":c2,"syringe_id":syringe_id,
-                                 "label_id":label,"status":"issued","agent":agent})
-    _audit_write(br, "overlay-physiology", animal_id=animal, label_id=label, syringe_id=syringe_id, agent=agent)
-    print("[+] PHYSIOLOGY overlay issued at BLINDER root.")
+                                 "syringe_underlay_id":syringe_underlay_id,
+                                 "label_id":label,"status":"issued","assignment":agent})
+    _audit_write(br, "overlay-physiology", animal_id=animal, label_id=label, syringe_id=syringe_underlay_id, agent=agent)
+    print("[+] PHYSIOLOGY overlay issued at BLINDER root for animal ID " + animal + ".")
 
 def cmd_overlay_aliquot(a):
     br = pathlib.Path(a.blinder_root).resolve()

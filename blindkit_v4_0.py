@@ -674,7 +674,7 @@ def cmd_overlay_physiology(a):
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"PHYSIOLOGY","session":None,
                                  "syringe_underlay_id":syringe_underlay_id,
                                  "status":"issued","assignment":agent})
-    _audit_write(br, "overlay-physiology", animal_id=animal, label_id=label, syringe_id=syringe_underlay_id, agent=agent)
+    _audit_write(br, "overlay-physiology", animal_id=animal, syringe_underlay_id=syringe_underlay_id, assignment=agent)
     print("[+] PHYSIOLOGY overlay issued at BLINDER root for animal ID " + animal + ".")
 
 def cmd_overlay_aliquot(a):

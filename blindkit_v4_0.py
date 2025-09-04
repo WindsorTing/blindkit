@@ -17,7 +17,7 @@ Features
 - Audit viewer: filter audit JSONL by action/animal/stage/time/grep/tail.
 """
 
-import argparse, csv, datetime, hashlib, json, os, pathlib, random, re, shutil, sys, zipfile
+import argparse, csv, datetime, hashlib, json, os, pathlib, random, re, shutil, sys, zipfile, glob
 import pandas as pd
 from pathlib import Path
 from collections import Counter
@@ -263,15 +263,16 @@ def _load_legacy_assignments(path: str, allowed_agents):
 def cmd_plan_physiology(a): # needs to integrate versioned json
     seed = a.date_seed
     blinder_dir = Path(a.blinder_root)
-    plan_path = blinder_dir / "configs" / "physiology_plan_*.json"
+    plan_path = blinder_dir / "configs"
+    # plan_path = blinder_dir / "configs"
     planning_dir = plan_path.parent
     versioned_json = blinder_dir / "configs" / f"physiology_plan_{seed}.json"
 
     planning_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load animal list from JSONL file
-    # registered_df = pd.read_json(a.reganimals_list, lines=True)
-    # registered_animals = set(registered_df["animal"])
+    # Load registered animal list from JSONL file
+    registered_df = pd.read_json(a.reganimals_list, lines=True)
+    registered_animals = set(registered_df["animal"])
 
     # Load agent list from text file (one agent per line)
     agent_list = a.agents
@@ -282,10 +283,10 @@ def cmd_plan_physiology(a): # needs to integrate versioned json
         print("Error: you must provide at least two unique agents.")
         return
 
-    # Load existing plans if available
-    if plan_path.exists():
+    # Load assigned animal list from versioned jsons if available
+    if os.path.exists(planning_dir):
         existing_animals = set()
-        for plan_file in planning_dir.glob("physiology_plan_*.json"):
+        for plan_file in plan_path.glob("physiology_plan_*.json"):
             with open(plan_file) as f:
                 plan = json.load(f)
                 existing_animals.update(plan.get("assignments", {}).keys())
@@ -356,7 +357,7 @@ def cmd_plan_physiology(a): # needs to integrate versioned json
 
     versioned_json.write_text(json.dumps(output, indent=2))
     print(f"Saved to {versioned_json}")
-    print(f"Final agent distribution: {Counter([a['agent'] for a in assignments.values()])}")
+    print(f"Agent distribution for this planning run: {Counter([a['agent'] for a in assignments.values()])}")
 
     # full_plan_for_json = dict(zip(full_plan["animal"], full_plan["agent"]))
 

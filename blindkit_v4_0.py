@@ -262,7 +262,7 @@ def _load_legacy_assignments(path: str, allowed_agents):
             legacy[an] = ag
     return legacy
 
-def cmd_plan_physiology(a): # needs to integrate versioned json
+def cmd_plan_physiology(a):
     seed = a.date_seed
     blinder_dir = Path(a.blinder_root)
     plan_path = blinder_dir / "configs"
@@ -371,6 +371,85 @@ def cmd_plan_physiology(a): # needs to integrate versioned json
     # print(f"Appended {len(new_df)} new assignments. Total now: {len(full_plan)} animals.")
     # print(f"Appended {len(new_df)} new assignments.")
     # print(f"Final agent distribution: {dict(Counter(full_plan['agent']))}")
+
+def cmd_plan_aliquot(a):
+    seed = a.date_seed
+    blinder_dir = Path(a.blinder_root)
+    plan_path = blinder_dir / "configs"
+    planning_dir = plan_path.parent
+    versioned_json = blinder_dir / "configs" / f"brainstem_viral_aliquot_plan_{seed}.json"
+
+    planning_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load registered animal list from JSONL file
+    registered_df = pd.read_json(a.reganimals_list, lines=True)
+    registered_animals = set(registered_df["animal"])
+
+    # Load agent list from text file (one agent per line)
+    virus_list = a.brainstem_virus
+    seed = a.date_seed
+
+    unique_virus = sorted(set(virus_list))
+    if len(unique_virus) <2: 
+        print("Error: you must provide at least two brainstem viral agents. Please rerun the command.")
+        return
+
+    # Load assigned animal list from versioned jsons if available
+    if os.path.exists(planning_dir):
+        existing_animals = set()
+        for plan_file in plan_path.glob("brainstem_viral_aliquot_plan_*.json"):
+            with open(plan_file) as f:
+                plan = json.load(f)
+                existing_animals.update(plan.get("assignments", {}).keys())
+        print(f"Loaded existing viral plan with {len(existing_animals)} assigned animals.")
+    else:
+        existing_df = pd.DataFrame()
+        existing_animals = set()
+        print("No existing plan found. Starting fresh.")
+
+    # Determine unassigned animals
+    # unassigned_animals = sorted(registered_animals - assigned_animals)
+    unassigned_animals = sorted(registered_animals - existing_animals)
+    if not unassigned_animals:
+        print("No unassigned animals found. Plan is up to date.")
+        return
+
+    print(f"Found {len(unassigned_animals)} unassigned animals: {unassigned_animals}")
+
+    # Hash inputs to generate deterministic seed
+    hash_input = "".join(sorted(unassigned_animals)) + "".join(sorted(unique_virus)) + str(seed)
+    hashed_seed = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16) % (10 ** 8)
+    random.seed(hashed_seed)
+
+    # Create balanced group assignment
+    n = len(unassigned_animals)
+    n_virus = len(unique_virus)
+    base_count = n // n_virus
+    remainder = n % n_virus
+
+    # Create balanced virus list
+    virus_counts = [base_count + (1 if i < remainder else 0) for i in range(n_virus)]
+    balanced_virus = []
+    for virus, count in zip(unique_virus, virus_counts):
+        balanced_virus.extend([virus] * count)
+    random.shuffle(balanced_virus)
+
+    assignments = {
+        animal: {
+            "virus": virus,
+            "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+        }
+        for animal, virus in zip(unassigned_animals, balanced_virus)
+    }
+
+    output = {
+        "seed": seed,
+        "assignments": assignments
+    }
+
+    versioned_json.write_text(json.dumps(output, indent=2))
+    print(f"Saved virus aliquot assignments to {versioned_json}")
+    print(f"Viral aliquot distribution for this planning run: {Counter([a['virus'] for a in assignments.values()])}")
 
 # ---------- Overlays (BLINDER) ----------
 _MICRO_ALPH="23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -1150,6 +1229,7 @@ def main():
     # Planning
     p=sp.add_parser("plan-behavior"); p.add_argument("--blinder-root", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.set_defaults(func=cmd_plan_behavior)
     p=sp.add_parser("plan-physiology"); p.add_argument("--blinder-root", required=True); p.add_argument("--reganimals-list", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.add_argument("--legacy-json"); p.add_argument("--legacy-csv"); p.add_argument("--allow-unregistered", action="store_true"); p.set_defaults(func=cmd_plan_physiology)
+    p=sp.add_parser("plan-aliquot"); p.add_argument("--blinder-root", required=True); p.add_argument("--reganimals-list", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--brainstem-virus", nargs=2, required=True); p.set_defaults(func=cmd_plan_aliquot)
 
     # Overlays
     p=sp.add_parser("overlay-behavior"); p.add_argument("--blinder-root", required=True); p.set_defaults(func=cmd_overlay_behavior)

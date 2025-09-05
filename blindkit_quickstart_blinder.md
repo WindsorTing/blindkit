@@ -1,4 +1,5 @@
-# BLINDKIT v4.0 — Blinder Quick Start
+# BLINDKIT v5.0rc1 — Blinder Quick Start
+## Shipped 202509051700
 
 > Your task is to manage the BLINDER github repo on your laptop; the experimenter does not have access to it until UNBLINDING.
 > After every relevant change below at step 1 onwards, please push a new commit to this private repository, for post-hoc audit.
@@ -23,12 +24,12 @@ Open the command line and change directory to the local directory under Git Cont
 
 Create only the blinder tree:
 ```bash
-python blindkit_v4_0.py init-dual --study-id reticulospinal_inhibition --blinder-root "blinder folder path" --only blinder
+python blindkit.py init-dual --study-id reticulospinal_inhibition --blinder-root "blinder folder path" --only blinder
 ```
 
 ## Step 2: Register Animals
 ```bash
-python blindkit_v4_0.py register-animal --blinder-root "blinder folder path" --animal-id RAT001 --sex F --weight 230g
+python blindkit.py register-animal --blinder-root "blinder folder path" --animal-id RAT001 --sex F --weight 230g
 # Repeat per animal - ok to register groups of new rats at once.
 ```
 
@@ -40,41 +41,44 @@ Reproducible with YYYYMMDDHHMM seeds
 # This should be run only after two or more new animals have been registered using the above command.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
 
-python blindkit_v4_0.py plan-aliquot --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --brainstem-virus Cre-DREADD-mCherry Cre-mCherry
+python blindkit.py plan-aliquot --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --brainstem-virus Cre-DREADD-mCherry Cre-mCherry
 
 # Please use 24h time format for HHMM.
 ```
 
-### B: Behavior (2×A, 2×B per animal subset)
+<!-- ### B: Behavior (2×A, 2×B per animal subset)
 ```bash
-python blindkit_v4_0.py plan-behavior --blinder-root "blinder folder path" --date-seed YYYYMMDDHHMM --agents CNO saline
-```
+python blindkit.py plan-behavior --blinder-root "blinder folder path" --date-seed YYYYMMDDHHMM --agents CNO saline -->
+
 
 ### C: Terminal Physiology (50/50 cohort)
 ```bash
 # This should be run only after two or more new animals have been registered using the above command.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
 
-python blindkit_v4_0.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline
+python blindkit.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline
 
 # Please use 24h time format for HHMM.
 ```
 
+<!-- 
+# Behavior (prompts for animal, session 1-4, base syringe ID)
+# python blindkit.py overlay-behavior --blinder-root ./study_X_blinder -->
+
 ## Step 4: Generate Blinded Label Overlays
 ```bash
-# Behavior (prompts for animal, session 1-4, base syringe ID)
-python blindkit_v4_0.py overlay-behavior --blinder-root ./study_X_blinder
+# Viral aliquot micro-label (cap/side code input)
+python blindkit.py overlay-aliquot --blinder-root "blinder folder path"
 
 # Physiology (one per animal; echoes planned agent to console for blinder only)
-python blindkit_v4_0.py overlay-physiology --blinder-root "blinder folder path"
+python blindkit.py overlay-physiology --blinder-root "blinder folder path"
 
-# Viral aliquot micro-label (cap/side code input)
-python blindkit_v4_0.py overlay-aliquot --blinder-root "blinder folder path"
+
 ```
-- Text label files saved under `BLINDER/labels/` (+ optional QR PNGs if `qrcode` is installed).
-- Registry updates: `BLINDER/labels/registry.json` (append-only).
+- Text label files saved under `/blinder folder path/labels/`
+- Registry updates: `blinder folder path/labels/registry.json` (append-only).
 
-## Handoff & reconciliation
+<!-- ## Handoff & reconciliation
 Experimenter logs receipts; you reconcile to mark overlays USED.
 ```bash
 python blindkit_v4_0.py reconcile-usage \
@@ -84,7 +88,7 @@ python blindkit_v4_0.py reconcile-usage \
 
 ## Anatomy blinding (to experimenter)
 ```bash
-python blindkit_v4_0.py blind-anatomy \
+python blindkit.py blind-anatomy \
   --blinder-root ./study_X_blinder \
   --experimenter-root ./study_X_experimenter \
   --input-root  /data/histo_unblinded \
@@ -98,22 +102,22 @@ Creates:
 
 ## Post‑hoc bundle (for review)
 ```bash
-python blindkit_v4_0.py package-unblinding \
+python blindkit.py package-unblinding \
   --blinder-root ./study_X_blinder \
   --experimenter-root ./study_X_experimenter \
   --out ./study_X_unblinding_bundle.zip
 
 # Anyone can verify integrity; also logs to specified root(s)
-python blindkit_v4_0.py verify-posthoc --bundle ./study_X_unblinding_bundle.zip --blinder-root ./study_X_blinder
+python blindkit.py verify-posthoc --bundle ./study_X_unblinding_bundle.zip --blinder-root ./study_X_blinder
 ```
 
 ## Audit log queries
 ```bash
 # Last 30 actions in the blinder repo
-python blindkit_v4_0.py audit-show --root ./study_X_blinder --tail 30
+python blindkit.py audit-show --root ./study_X_blinder --tail 30
 
 # Only overlays
-python blindkit_v4_0.py audit-show --root ./study_X_blinder --action overlay-physiology
+python blindkit.py audit-show --root ./study_X_blinder --action overlay-physiology -->
 ```
 
 ## Repo hygiene

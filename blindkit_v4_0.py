@@ -23,6 +23,7 @@ from pathlib import Path
 from collections import Counter
 from PIL import Image, ImageDraw, ImageFont
 import math
+import segno
 
 # ---------- Optional deps ----------
 try:
@@ -342,8 +343,10 @@ def cmd_plan_physiology(a):
 
     assignments = {
         animal: {
-            "agent": agent,
-            "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+            "physiology": {
+                "agent": agent,
+                "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+            }
         }
         for animal, agent in zip(unassigned_animals, balanced_agents)
     }
@@ -358,8 +361,8 @@ def cmd_plan_physiology(a):
     # full_plan.to_csv(plan_path, index=False)
 
     versioned_json.write_text(json.dumps(output, indent=2))
-    print(f"Saved to {versioned_json}")
-    print(f"Agent distribution for this planning run: {Counter([a['agent'] for a in assignments.values()])}")
+    print(f"New animal assignments saved to {versioned_json}")
+    # print(f"Agent distribution for this planning run: {Counter([a['agent'] for a in assignments.values()])}")
 
     # full_plan_for_json = dict(zip(full_plan["animal"], full_plan["agent"]))
 
@@ -436,8 +439,10 @@ def cmd_plan_aliquot(a):
 
     assignments = {
         animal: {
-            "virus": virus,
-            "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+            "viral_aliquot": {
+                "virus": virus,
+                "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+            }
         }
         for animal, virus in zip(unassigned_animals, balanced_virus)
     }
@@ -449,7 +454,7 @@ def cmd_plan_aliquot(a):
 
     versioned_json.write_text(json.dumps(output, indent=2))
     print(f"Saved virus aliquot assignments to {versioned_json}")
-    print(f"Viral aliquot distribution for this planning run: {Counter([a['virus'] for a in assignments.values()])}")
+    # print(f"Viral aliquot distribution for this planning run: {Counter([a['virus'] for a in assignments.values()])}")
 
 # ---------- Overlays (BLINDER) ----------
 _MICRO_ALPH="23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -570,6 +575,8 @@ def build_qr_with_border_labels(
     inner_gap, outer_gap, repeat_gap, corner_gap,
     qr_version, box_size, quiet_border
 ):
+    
+    
     # 1) QR
     qr_img = make_qr(data, qr_version, box_size, quiet_border)
 
@@ -603,6 +610,143 @@ def build_qr_with_border_labels(
     tile_horizontal(canvas, sprite, y=bottom_y, gap_px=repeat_gap, x_start=left_guard,  x_end=right_guard)
     tile_vertical(  canvas, left_sprite,  x=left_x,  gap_px=repeat_gap, y_start=top_guard,    y_end=bottom_guard)
     tile_vertical(  canvas, right_sprite, x=right_x, gap_px=repeat_gap, y_start=top_guard,    y_end=bottom_guard)
+
+    return canvas
+
+def build_qr_with_border_labels_mini(
+    data, label, font,
+    inner_gap, outer_gap, repeat_gap, corner_gap,
+    qr_version, box_size, quiet_border
+):
+    
+         # ---------------------- PHYSICAL TARGET ----------------------
+    TARGET_CM = 1.0        # final sticker width/height in centimeters
+    DPI       = 900        # printer DPI (203 / 300 / 600, etc.)
+    SCALE     = 4          # supersampling factor (2–4 typical; 4 is very sharp)
+    # -------------------------------------------------------------
+
+    # ---------------------- AESTHETICS ----------------------
+    # Base (pre-scale) sizes; code multiplies by SCALE internally
+    # Good starting points for a 3 cm sticker at 300 dpi:
+    FONT_SIZE_BASE = 16      # final text height ~18 px → legible at 3 cm; adjust if needed
+    INNER_GAP      = 5       # QR ↔ text (tight but safe)
+    OUTER_GAP      = 8       # text ↔ outer canvas edge
+    REPEAT_GAP     = 10      # spacing between repeated labels
+    CORNER_GAP     = 1       # extra breathing room at corners
+    # ------------------------------------------------------
+
+    # ---------------------- FONT PICK ----------------------
+    FONT_PATHS = [
+        "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
+        "/Library/Fonts/JetBrainsMono-Regular.ttf",
+        "C:/Windows/Fonts/JetBrainsMono-Regular.ttf",
+        "C:/Windows/Fonts/consola.ttf",                        # Consolas (Windows)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", # DejaVu
+    ]
+    # ------------------------------------------------------
+
+    # ---------------------- QR PARAMS ----------------------
+    # Keep quiet border >= 4 modules for robust scanning
+    QR_VERSION   = 2       # version will auto-increase if DATA needs it (fit=True)
+    BOX_SIZE     = 7       # base module pixels (before SCALE); adjust if needed
+    QUIET_BORDER = 4
+    # ------------------------------------------------------
+    # 1) QR
+    qr_img = make_qr(data, qr_version, box_size, quiet_border)
+
+    # 2) Label sprites
+    sprite = text_sprite(label, font, bleed=2)
+    left_sprite  = sprite.rotate(90,  expand=True)
+    right_sprite = sprite.rotate(-90, expand=True)
+
+    # # 3) Margin from measured sprite (text height) + gaps
+    # label_margin = sprite.height + inner_gap + outer_gap
+
+    # # 4) Canvas & place QR
+    # W, H = qr_img.size
+    # canvas = Image.new("RGBA", (W + 2 * label_margin, H + 2 * label_margin), (255, 255, 255, 255))
+    # canvas.alpha_composite(qr_img, (label_margin, label_margin))
+
+    # # Right side needs room for the rotated label height; others can be tight.
+    # right_margin = sprite.height + inner_gap + outer_gap
+    # left_margin  = outer_gap + inner_gap          # no left labels → minimal
+    # top_margin   = outer_gap + inner_gap           # minimal
+    # bot_margin   = outer_gap + inner_gap           # minimal
+
+    # W, H = qr_img.size
+    # canvas = Image.new(
+    #     "RGBA",
+    #     (W + left_margin + right_margin, H + top_margin + bot_margin),
+    #     (255, 255, 255, 255)
+    # )
+    # # Paste QR (shifted left to make room on the right)
+    # canvas.alpha_composite(qr_img, (left_margin, top_margin))
+
+    # # Rebuild sprites (already done above)
+    # right_sprite = sprite.rotate(-90, expand=True)
+
+    # # Right edge x-position (from new canvas size)
+    # right_x = canvas.width - right_sprite.width - outer_gap
+
+    # # Corner guards just need the horizontal sprite height (for the ends)
+    # top_guard    = outer_gap + sprite.height + corner_gap
+    # bottom_guard = canvas.height - (outer_gap + sprite.height + corner_gap)
+
+    # # 5) Edge positions
+    # top_y    = outer_gap
+    # bottom_y = canvas.height - sprite.height - outer_gap
+    # left_x   = outer_gap
+    # right_x  = canvas.width - right_sprite.width - outer_gap
+
+    # # 6) Corner guards (avoid collisions)
+    # left_guard   = outer_gap + left_sprite.width  + corner_gap
+    # right_guard  = canvas.width - (outer_gap + right_sprite.width + corner_gap)
+    # top_guard    = outer_gap + sprite.height + corner_gap
+    # bottom_guard = canvas.height - (outer_gap + sprite.height + corner_gap)
+
+    # # 7) Tile labels
+    # tile_vertical(  canvas, right_sprite, x=right_x, gap_px=repeat_gap, y_start=top_guard,    y_end=bottom_guard)
+
+        # Rotate the label for the right edge
+    right_sprite = sprite.rotate(-90, expand=True)
+
+    # Safety buffer (prevents any edge clipping when downsampling)
+    # Use at least 1 px, or SCALE for extra safety when supersampling.
+    safety_px = max(1, 2*SCALE)
+
+    # ASYMMETRIC MARGINS
+    # Right margin must fit the *rotated* sprite width + gaps + safety.
+    right_margin = right_sprite.width + INNER_GAP*SCALE + OUTER_GAP*SCALE + safety_px
+    left_margin  = (INNER_GAP + OUTER_GAP) * SCALE   # minimal on the left
+    top_margin   = (INNER_GAP + OUTER_GAP) * SCALE   # minimal on top
+    bot_margin   = (INNER_GAP + OUTER_GAP) * SCALE   # minimal on bottom
+
+    # Build canvas and paste QR shifted left to make room on the right
+    W, H = qr_img.size
+    canvas = Image.new("RGBA",
+                    (W + left_margin + right_margin, H + top_margin + bot_margin),
+                    (255, 255, 255, 255))
+    canvas.alpha_composite(qr_img, (left_margin, top_margin))
+
+    # Right-edge X position (leave OUTER_GAP + safety)
+    right_x = canvas.width - right_sprite.width - (OUTER_GAP*SCALE + safety_px)
+
+    # Keep a small guard so first/last repeats don't touch the canvas edges
+    top_guard    = OUTER_GAP*SCALE + safety_px
+    bottom_guard = canvas.height - (OUTER_GAP*SCALE + safety_px)
+
+    # Tile ONLY on right edge
+    tile_vertical(canvas, right_sprite, x=right_x, gap_px=REPEAT_GAP*SCALE,
+                y_start=top_guard, y_end=bottom_guard)
+
+    # --- when forcing to exact 3 cm: PAD, don't crop ---
+    # (replace any previous center-crop with padding)
+    work_px = cm_to_px(TARGET_CM, DPI) * SCALE
+    Wc, Hc = canvas.size
+    scale_factor = work_px / min(Wc, Hc)
+    newW = int(round(Wc * scale_factor))
+    newH = int(round(Hc * scale_factor))
+    canvas = canvas.resize((newW, newH), resample=Image.LANCZOS)
 
     return canvas
 
@@ -656,7 +800,7 @@ def cmd_overlay_physiology(a):
     # Load assigned animal list from versioned jsons if available
     if os.path.exists(plan_path):
         for filename in os.listdir(plan_path):
-            if not filename.endswith(".json"):
+            if not filename.startswith("physiology_plan") and filename.endswith(".json"):
                 continue
             filepath = os.path.join(plan_path, filename)
             try:
@@ -685,10 +829,10 @@ def cmd_overlay_physiology(a):
     else:
         existing_df = pd.DataFrame()
         existing_animals = set()
-        print("No existing plan found. Starting fresh.")
+        print("No existing plan found. Please run the physiology agent assignment command for this rat before proceeding with this one.")
 
     # dummy,c1,c2,label = overlay_common(animal,"PHYSIOLOGY",syringe_underlay_id)
-    label = agent['label']
+    label = agent['physiology']['label']
     
     ts0=iso_now()
     lbl = br/"labels"/f"{animal}_PHYS_{label}.txt"
@@ -757,22 +901,165 @@ def cmd_overlay_physiology(a):
     print("[+] PHYSIOLOGY overlay issued at BLINDER root for animal ID " + animal + ".")
 
 def cmd_overlay_aliquot(a):
+
+    
+        # ---------------------- PHYSICAL TARGET ----------------------
+    TARGET_CM = 1.0        # final sticker width/height in centimeters
+    DPI       = 900        # printer DPI (203 / 300 / 600, etc.)
+    SCALE     = 4          # supersampling factor (2–4 typical; 4 is very sharp)
+    # -------------------------------------------------------------
+
+    # ---------------------- AESTHETICS ----------------------
+    # Base (pre-scale) sizes; code multiplies by SCALE internally
+    # Good starting points for a 3 cm sticker at 300 dpi:
+    FONT_SIZE_BASE = 19      # final text height ~18 px → legible at 3 cm; adjust if needed
+    INNER_GAP      = 5       # QR ↔ text (tight but safe)
+    OUTER_GAP      = 6       # text ↔ outer canvas edge
+    REPEAT_GAP     = 1      # spacing between repeated labels
+    CORNER_GAP     = 1       # extra breathing room at corners
+    # ------------------------------------------------------
+
+    # ---------------------- FONT PICK ----------------------
+    FONT_PATHS = [
+        "/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf",
+        "/Library/Fonts/JetBrainsMono-Regular.ttf",
+        "C:/Windows/Fonts/JetBrainsMono-Regular.ttf",
+        "C:/Windows/Fonts/consola.ttf",                        # Consolas (Windows)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", # DejaVu
+    ]
+    # ------------------------------------------------------
+
+    # ---------------------- QR PARAMS ----------------------
+    # Keep quiet border >= 4 modules for robust scanning
+    QR_VERSION   = 2       # version will auto-increase if DATA needs it (fit=True)
+    BOX_SIZE     = 7       # base module pixels (before SCALE); adjust if needed
+    QUIET_BORDER = 4
+    # ------------------------------------------------------
+
     br = pathlib.Path(a.blinder_root).resolve()
     ensure_dirs(br, ["labels","media/photos","logs","audit"])
-    animal = input("Animal ID: ").strip()
-    aliquot_id = input("Base ALIQUOT_ID (cap/side code): ").strip()
-    dummy,c1,c2,label = overlay_common(animal,"VIRAL",aliquot_id)
+    animal = input("Animal ID to assign brainstem viral aliquot: ").strip()
+    aliquot_id = input("Viral Aliquot Underlay ID: ").strip()
+    plan_path = br/"configs"
+    virus="?"
+
+    # Load assigned animal list from versioned jsons if available
+    if os.path.exists(plan_path):
+        for filename in os.listdir(plan_path):
+            if not filename.startswith("brainstem_viral_aliquot_plan") and filename.endswith(".json"):
+                continue
+            filepath = os.path.join(plan_path, filename)
+            try:
+                with open(filepath, "r") as f:
+                    data = json.load(f)
+                assignments = data.get("assignments", {})
+                result = assignments.get(animal, "?")
+
+                if result != "?":  # found the animal
+                    print("Rat " + animal + " was successfully found in the registered animals list.")
+                    agent = result
+                    found_file = filename
+                    break  # stop searching
+
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Skipping {filename}: {e}")
+
+        # existing_animals = set()
+        # for plan_file in plan_path.glob("physiology_plan_*.json"):
+        #     with open(plan_file) as f:
+        #         # plan = json.load(f)
+        #         agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
+        # existing_df = pd.read_csv(plan_path)
+        # assigned_animals = set(existing_df["animal"])
+        print(f"Scanned existing set of versioned jsons.")
+    else:
+        existing_df = pd.DataFrame()
+        existing_animals = set()
+        print("No existing plan found. Please run the viral agent assignment command for this rat before proceeding with this one.")
+
+    label = agent['viral_aliquot']['label']
+
     ts0=iso_now()
-    lbl = br/"labels"/f"{animal}_VIRAL_{label}.micro.txt"
-    lbl.write_text(f"D:{dummy}\nC1:{c1}\nC2:{c2}\nCID:{aliquot_id}\nL:{label}\nTS:{ts0}\n")
-    if HAS_QR:
-        payload=json.dumps({"animal":animal,"stage":"VIRAL","dummy":dummy,"check1":c1,"check2":c2,"syringe_id":aliquot_id,"label_id":label,"ts":ts0}, sort_keys=True)
-        qrcode.make(label).save(br/"labels"/f"{animal}_VIRAL_{label}.png")
+    lbl = br/"labels"/f"{animal}_VIRAL_{label}.txt"
+    lbl.write_text(f"ANIMAL:{animal}\nSTAGE:VIRUS\nVIRAL ALIQUOT UNDERLYING ID:{aliquot_id}\nVIRAL ASSIGNMENT:{agent}\nTS:{ts0}\n")
+    if HAS_QR:    
+        payload=json.dumps({animal:label}, sort_keys=True)
+        qr_label = animal+"::"+label
+
+        # Compute exact target pixels and superscaled working size
+        target_px = cm_to_px(TARGET_CM, DPI)       # final width=height in pixels
+        work_px   = target_px * SCALE
+
+        # Load font at superscaled size
+        font = load_font(FONT_PATHS, FONT_SIZE_BASE * SCALE)
+
+        # Build at high resolution (all distances scaled)
+        img_hi = build_qr_with_border_labels_mini(
+            payload, qr_label, font,
+            inner_gap = INNER_GAP   * SCALE,
+            outer_gap = OUTER_GAP   * SCALE,
+            repeat_gap= REPEAT_GAP  * SCALE,
+            corner_gap= CORNER_GAP  * SCALE,
+            qr_version= QR_VERSION,
+            box_size  = BOX_SIZE    * SCALE,   # QR modules scale too
+            quiet_border = QUIET_BORDER,
+        )
+
+        # If the hi-res image isn't exactly work_px, center-crop or pad to square work_px
+        # (Usually close already, but we force exact so downscale hits 3 cm precisely)
+        W, H = img_hi.size
+        # First, resize proportionally so the smallest side == work_px,
+        # then center-crop or pad to exact square work_px×work_px.
+        scale_factor = work_px / min(W, H)
+        newW = int(round(W * scale_factor))
+        newH = int(round(H * scale_factor))
+        img_hi = img_hi.resize((newW, newH), resample=Image.LANCZOS)
+
+        canvas = Image.new("RGBA", (work_px, work_px), (255, 255, 255, 255))
+
+        # You can bias the placement a little left so the right label has extra headroom.
+        offset_x = (work_px - newW) // 2
+        offset_y = (work_px - newH) // 2
+
+        # If your right label needs more room vertically, push the content down a bit:
+        offset_y = max(0, offset_y) + 20  # tweak "+ 0" to e.g. "+ 8"
+
+        canvas.alpha_composite(img_hi, (offset_x, offset_y))
+        img_hi = canvas
+
+
+        # # Center-crop or pad to exact square
+        # left   = (newW - work_px) // 2
+        # top    = (newH - work_px) // 2
+        # right  = left + work_px
+        # bottom = top + work_px
+
+        # if newW >= work_px and newH >= work_px:
+        #     img_hi = img_hi.crop((left, top, right, bottom))
+        # else:
+        #     # pad if smaller (unlikely with current settings)
+        #     canvas = Image.new("RGBA", (work_px, work_px), (255, 255, 255, 255))
+        #     canvas.alpha_composite(img_hi, ((work_px - newW)//2, (work_px - newH)//2))
+        #     img_hi = canvas
+
+        # Downscale to exact target (1 cm @ DPI)
+        img = img_hi.resize((target_px, target_px), resample=Image.LANCZOS)
+
+        # Save with DPI metadata
+        out = br/"labels"/f"{animal}_VIRAL_{label}.png"
+        img.save(out, dpi=(DPI, DPI))
+        print(f"Saved {out} — exact size: {TARGET_CM} cm × {TARGET_CM} cm at {DPI} dpi ({target_px}×{target_px}px)")
+
+        # # payload=json.dumps({animal:label}, sort_keys=True)
+        # payload= str(animal) + "::" + str(label)
+        # # viral_micro_qr = segno.make_micro(payload)
+        # # viral_micro_qr.save(br/"labels"/f"{animal}_VIRAL_{label}.png")
+        # qrcode.make(payload).save(br/"labels"/f"{animal}_VIRAL_{label}.png")
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"VIRAL","session":None,
-                                 "dummy":dummy,"check1":c1,"check2":c2,"syringe_id":aliquot_id,
-                                 "label_id":label,"status":"issued"})
-    _audit_write(br, "overlay-aliquot", animal_id=animal, label_id=label, aliquot_id=aliquot_id)
-    print("[+] VIRAL micro‑label issued at BLINDER root.")
+                                 "syringe_id":aliquot_id,
+                                 "label_id":label,"status":"issued","assignment":agent})
+    _audit_write(br, "overlay-aliquot", animal_id=animal, stage="VIRAL", aliquot_underlay_id=aliquot_id, viral_aliquot_assignment=agent)
+    print("[+] VIRAL micro‑label issued at BLINDER root for animal ID " + animal + ".")
 
 # ---------- Experimenter: inject-scan → receipt ----------
 def cmd_inject_scan(a):

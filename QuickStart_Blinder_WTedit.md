@@ -33,22 +33,31 @@ python blindkit_v4_0.py register-animal --blinder-root "blinder folder path" --a
 ```
 
 ## Step 3: Random Assignment
-Reproducible with YYYYMMDD seeds
+Reproducible with YYYYMMDDHHMM seeds
 
-### A: Physiology (50/50 cohort)
+### A: Brainstem Viral Aliquot (to implement: 4:1 seeded bias Cre-DREADD-mCherry)
 ```bash
 # This should be run only after two or more new animals have been registered using the above command.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
 
-python blindkit_v4_0.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline --allow-unregistered
+python blindkit_v4_0.py plan-aliquot --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --brainstem-virus Cre-DREADD-mCherry Cre-mCherry
 
 # Please use 24h time format for HHMM.
-# If legacy assignments (pre-blindkit) are present: add flag --legacy-json ./legacy_phys.json
 ```
 
 ### B: Behavior (2×A, 2×B per animal subset)
 ```bash
 python blindkit_v4_0.py plan-behavior --blinder-root "blinder folder path" --date-seed YYYYMMDDHHMM --agents CNO saline
+```
+
+### C: Terminal Physiology (50/50 cohort)
+```bash
+# This should be run only after two or more new animals have been registered using the above command.
+# Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
+
+python blindkit_v4_0.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline
+
+# Please use 24h time format for HHMM.
 ```
 
 ## Step 4: Generate Blinded Label Overlays
@@ -60,7 +69,7 @@ python blindkit_v4_0.py overlay-behavior --blinder-root ./study_X_blinder
 python blindkit_v4_0.py overlay-physiology --blinder-root "blinder folder path"
 
 # Viral aliquot micro-label (cap/side code input)
-python blindkit_v4_0.py overlay-aliquot --blinder-root ./study_X_blinder
+python blindkit_v4_0.py overlay-aliquot --blinder-root "blinder folder path"
 ```
 - Text label files saved under `BLINDER/labels/` (+ optional QR PNGs if `qrcode` is installed).
 - Registry updates: `BLINDER/labels/registry.json` (append-only).

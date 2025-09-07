@@ -136,9 +136,37 @@ def animals_list(br: pathlib.Path):
 
 def cmd_register_animal(a):
     br = pathlib.Path(a.blinder_root).resolve()
-    ensure_dirs(br, ["configs","audit"])
-    with open(animals_path(br), "a", encoding="utf-8") as f:
-        f.write(json.dumps({"animal": a.animal_id, "sex": a.sex, "weight": a.weight, "ts": iso_now()})+"\n")
+    ensure_dirs(br, ["configs", "audit"])
+    animals_file = animals_path(br)
+
+    # 1. Load existing animals if file exists
+    existing_ids = set()
+    if animals_file.exists():
+        with open(animals_file, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    record = json.loads(line)
+                    existing_ids.add(record.get("animal"))
+                except json.JSONDecodeError:
+                    continue  # skip bad lines
+
+    # 2. Check for duplicate
+    if a.animal_id in existing_ids:
+        print(f"[!] Animal {a.animal_id} is already registered.")
+        print("[!] If you're certain this is a new animal please recheck for typos.")
+        return
+
+    # 3. Append new entry
+    new_entry = {
+        "animal": a.animal_id,
+        "sex": a.sex,
+        "weight": a.weight,
+        "ts": iso_now(),
+    }
+    with open(animals_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(new_entry) + "\n")
+
+    # 4. Audit + print
     _audit_write(br, "register-animal", animal_id=a.animal_id, sex=a.sex, weight=a.weight)
     print("[+] Registered animal", a.animal_id, "in BLINDER configs")
 

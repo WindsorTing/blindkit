@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BlindKit v5.0rc1 — Integrated two-root blinding toolkit with comprehensive audit logging,
+BlindKit — Integrated two-root blinding toolkit with comprehensive audit logging,
 legacy-aware physiology planning, and `init-dual --only` mode.
 
 Features
@@ -24,6 +24,8 @@ from collections import Counter
 from PIL import Image, ImageDraw, ImageFont
 import math
 import segno
+import secrets, string
+from typing import Any, Dict, Iterable, Set
 
 # ---------- Optional deps ----------
 try:
@@ -168,6 +170,26 @@ def seeded_rng(date_seed: str, animal: str):
 #     _audit_write(br, "plan-behavior", date_seed=a.date_seed, agents=",".join(a.agents), animals=len(ans))
 #     print("[+] Behavior plan saved at BLINDER configs")
 
+def load_all_labels(registry_path: Path) -> set[str]:
+    with registry_path.open("r") as f:
+        data = json.load(f)
+
+    used = set()
+    assignments = data.get("assignments", {})
+    for domain in ["viral_aliquot", "physiology"]:
+        for entry in assignments.get(domain, {}).values():
+            if isinstance(entry, dict) and "label" in entry:
+                used.add(entry["label"])
+    return used
+
+def unique_label(used: set[str], prefix="syr", length=6, max_tries=100) -> str:
+    for _ in range(max_tries):
+        lbl = new_label(prefix, length)
+        if lbl not in used:
+            used.add(lbl)   # reserve immediately
+            return lbl
+    raise RuntimeError("Could not generate a unique label; expand namespace")
+
 def cmd_plan_behavior(a): # needs stress testing
     blinder_dir = Path(a.blinder)
     planning_dir = blinder_dir / "configs"
@@ -190,7 +212,7 @@ def cmd_plan_behavior(a): # needs stress testing
     # Compose versioned output path based on seed
     versioned_json = planning_dir / f"behavior_plan_{seed}.json"
 
-    # Load previous assignments
+    # Load previous assigned animals
     existing_animals = set()
     for plan_file in planning_dir.glob("behavior_plan_*.json"):
         with open(plan_file) as f:
@@ -263,10 +285,44 @@ def _load_legacy_assignments(path: str, allowed_agents):
             legacy[an] = ag
     return legacy
 
+DOMAINS = ("viral_aliquot", "physiology")
+
+def _extract_domain_labels(assignment: Dict[str, Any]) -> Iterable[str]:
+    """Yield labels from known domains inside an 'assignment' block."""
+    for d in DOMAINS:
+        sub = assignment.get(d)
+        if isinstance(sub, dict):
+            lbl = sub.get("label")
+            if isinstance(lbl, str):
+                yield lbl
+
+def get_universe_labels(registry_path: Path) -> set[str]:
+    """
+    Return the full universe of labels across all animals, entries, and domains.
+    """
+    with registry_path.open("r") as f:
+        data = json.load(f)
+
+    labels: Set[str] = set()
+    for entry in data.get("entries", []):
+        assignment = entry.get("assignment", {})
+        if isinstance(assignment, dict):
+            labels.update(_extract_domain_labels(assignment))
+    return labels
+
+def unique_label(used: set[str], length=4, max_tries=100) -> str:
+    for _ in range(max_tries):
+        lbl = new_label(length)
+        if lbl not in used:
+            used.add(lbl)   # reserve immediately
+            return lbl
+    raise RuntimeError("Could not generate a unique label; expand namespace")
+
 def cmd_plan_physiology(a):
     seed = a.date_seed
     blinder_dir = Path(a.blinder_root)
     plan_path = blinder_dir / "configs"
+    registry_path = blinder_dir / "labels" / "registry.json"
     # plan_path = blinder_dir / "configs"
     planning_dir = plan_path.parent
     versioned_json = blinder_dir / "configs" / f"physiology_plan_{seed}.json"
@@ -341,15 +397,24 @@ def cmd_plan_physiology(a):
     #         "agent": agent
     #     })
 
+    used_labels = get_universe_labels(registry_path)
+
+    print("Current Universe Set of Used Labels from Registry: " + str(used_labels))
+
+    # unique_new_label = unique_label(used_labels, length=4, max_tries=100)
+
     assignments = {
         animal: {
             "physiology": {
                 "agent": agent,
-                "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+                # "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+                "label": unique_label(used_labels, length=4, max_tries=100)
             }
         }
         for animal, agent in zip(unassigned_animals, balanced_agents)
     }
+
+    print("New Blinded Labels Generated with Collision Resistance.")
 
     output = {
         "seed": seed,
@@ -374,6 +439,11 @@ def cmd_plan_physiology(a):
     # print(f"Appended {len(new_df)} new assignments. Total now: {len(full_plan)} animals.")
     # print(f"Appended {len(new_df)} new assignments.")
     # print(f"Final agent distribution: {dict(Counter(full_plan['agent']))}")
+
+ALPHABET = "ABCDEF0123456789"
+
+def new_label(length=4):
+    return "".join(secrets.choice(ALPHABET) for _ in range(length))
 
 def cmd_plan_aliquot(a):
     seed = a.date_seed
@@ -810,13 +880,17 @@ def cmd_overlay_physiology(a):
                 result = assignments.get(animal, "?")
 
                 if result != "?":  # found the animal
-                    print("Rat " + animal + " was successfully found in the registered animals list.")
+                    print(f"Scanned existing set of versioned jsons.")
                     agent = result
-                    found_file = filename
+                    print("Rat " + animal + " and its blinded code was successfully found in the registered animal list: " + str(filename))
+                    # found_file = filename
                     break  # stop searching
+                else:
+                    # print("Animal not found in " + str(filename))
+                    agent = "notassigned"
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
-                print(f"Skipping {filename}: {e}")
+                print(f"Skipping {filename}")
 
         # existing_animals = set()
         # for plan_file in plan_path.glob("physiology_plan_*.json"):
@@ -825,15 +899,19 @@ def cmd_overlay_physiology(a):
         #         agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
         # existing_df = pd.read_csv(plan_path)
         # assigned_animals = set(existing_df["animal"])
-        print(f"Scanned existing set of versioned jsons.")
+
     else:
         existing_df = pd.DataFrame()
         existing_animals = set()
-        print("No existing plan found. Please run the physiology agent assignment command for this rat before proceeding with this one.")
+        print("dummy text lorem ipsum")
 
     # dummy,c1,c2,label = overlay_common(animal,"PHYSIOLOGY",syringe_underlay_id)
-    label = agent['physiology']['label']
-    
+    if agent != "notassigned":
+        label = agent['physiology']['label']
+    elif agent == "notassigned":
+        print("No existing plan found for this animal. Please run the physiology agent assignment command for this rat before proceeding.")
+        return None
+
     ts0=iso_now()
     lbl = br/"labels"/f"{animal}_PHYS_{label}.txt"
     lbl.write_text(f"ANIMAL:{animal}\nSTAGE:PHYSIOLOGY\nSYRINGE_UNDERLAY:{syringe_underlay_id}\nASSIGNMENT:{agent}\nTS:{ts0}\n")

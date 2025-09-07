@@ -1,5 +1,4 @@
-# BLINDKIT v5.0rc1 — Blinder Quick Start
-## Shipped 202509051700
+# BLINDKIT — Blinder Quick Start
 
 > Your task is to manage the BLINDER github repo on your laptop; the experimenter does not have access to it until UNBLINDING.
 > After every relevant change below at step 1 onwards, please push a new commit to this private repository, for post-hoc audit.
@@ -30,13 +29,14 @@ python blindkit.py init-dual --study-id reticulospinal_inhibition --blinder-root
 ## Step 2: Register Animals
 ```bash
 python blindkit.py register-animal --blinder-root "blinder folder path" --animal-id RAT001 --sex F --weight 230g
-# Repeat per animal - ok to register groups of new rats at once.
+# Repeat per animal - ok to register groups of new rats with repeated command runs.
+# Idempotent - repeat attempts to register the same animal name are skipped.
 ```
 
-## Step 3: Random Assignment
+## Step 3: Random Assignment and Generate Codes
 Reproducible with YYYYMMDDHHMM seeds
 
-### A: Brainstem Viral Aliquot (to implement: 4:1 seeded bias Cre-DREADD-mCherry)
+### A: Brainstem Viral Aliquot (to implement: 4:1 seeded bias towards Cre-DREADD-mCherry)
 ```bash
 # This should be run only after two or more new animals have been registered using the above command.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
@@ -55,6 +55,7 @@ python blindkit.py plan-behavior --blinder-root "blinder folder path" --date-see
 ```bash
 # This should be run only after two or more new animals have been registered using the above command.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
+# Newly generated label candidates are unique by comparison with set of existing labels and deterministically reproducible via hashed seeds in versioned jsons.
 
 python blindkit.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline
 
@@ -65,7 +66,7 @@ python blindkit.py plan-physiology --blinder-root "blinder folder path" --regani
 # Behavior (prompts for animal, session 1-4, base syringe ID)
 # python blindkit.py overlay-behavior --blinder-root ./study_X_blinder -->
 
-## Step 4: Generate Blinded Label Overlays
+## Step 4: Generate Blinded Label Overlays from Assigned Codes
 ```bash
 # Viral aliquot micro-label (cap/side code input)
 python blindkit.py overlay-aliquot --blinder-root "blinder folder path"

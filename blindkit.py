@@ -477,6 +477,7 @@ def cmd_plan_aliquot(a):
     seed = a.date_seed
     blinder_dir = Path(a.blinder_root)
     plan_path = blinder_dir / "configs"
+    registry_path = blinder_dir / "labels" / "registry.json"
     planning_dir = plan_path.parent
     versioned_json = blinder_dir / "configs" / f"brainstem_viral_aliquot_plan_{seed}.json"
 
@@ -535,15 +536,22 @@ def cmd_plan_aliquot(a):
         balanced_virus.extend([virus] * count)
     random.shuffle(balanced_virus)
 
+    used_labels = get_universe_labels(registry_path)
+
+    print("Current Universe Set of Used Labels from Registry: " + str(used_labels))
+
     assignments = {
         animal: {
-            "viral_aliquot": {
-                "virus": virus,
-                "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+            "virus": {
+                "agent": virus,
+                # "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
+                "label": unique_label(used_labels, length=4, max_tries=100)
             }
         }
         for animal, virus in zip(unassigned_animals, balanced_virus)
     }
+
+    print("New Blinded Labels Generated with Collision Resistance.")
 
     output = {
         "seed": seed,
@@ -1062,13 +1070,17 @@ def cmd_overlay_aliquot(a):
                 result = assignments.get(animal, "?")
 
                 if result != "?":  # found the animal
-                    print("Rat " + animal + " was successfully found in the registered animals list.")
+                    print(f"Scanned existing set of versioned jsons.")
                     agent = result
-                    found_file = filename
+                    print("Rat " + animal + " and its blinded code was successfully found in the registered animal list: " + str(filename))
+                    # found_file = filename
                     break  # stop searching
+                else:
+                    # print("Animal not found in " + str(filename))
+                    agent = "notassigned"
 
             except (json.JSONDecodeError, FileNotFoundError) as e:
-                print(f"Skipping {filename}: {e}")
+                print(f"Skipping {filename}")
 
         # existing_animals = set()
         # for plan_file in plan_path.glob("physiology_plan_*.json"):
@@ -1077,13 +1089,41 @@ def cmd_overlay_aliquot(a):
         #         agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
         # existing_df = pd.read_csv(plan_path)
         # assigned_animals = set(existing_df["animal"])
-        print(f"Scanned existing set of versioned jsons.")
+
     else:
         existing_df = pd.DataFrame()
         existing_animals = set()
-        print("No existing plan found. Please run the viral agent assignment command for this rat before proceeding with this one.")
+        print("dummy text lorem ipsum")
 
-    label = agent['viral_aliquot']['label']
+    # dummy,c1,c2,label = overlay_common(animal,"PHYSIOLOGY",syringe_underlay_id)
+    if agent != "notassigned":
+        label = agent['virus']['label']
+    elif agent == "notassigned":
+        print("No existing plan found for this animal. Please run the viral agent assignment command for this rat before proceeding.")
+        return None
+    #             if result != "?":  # found the animal
+    #                 print("Rat " + animal + " was successfully found in the registered animals list.")
+    #                 agent = result
+    #                 found_file = filename
+    #                 break  # stop searching
+
+    #         except (json.JSONDecodeError, FileNotFoundError) as e:
+    #             print(f"Skipping {filename}: {e}")
+
+    #     # existing_animals = set()
+    #     # for plan_file in plan_path.glob("physiology_plan_*.json"):
+    #     #     with open(plan_file) as f:
+    #     #         # plan = json.load(f)
+    #     #         agent = json.loads(plan_path.read_text())["assignments"].get(animal,"?")
+    #     # existing_df = pd.read_csv(plan_path)
+    #     # assigned_animals = set(existing_df["animal"])
+    #     print(f"Scanned existing set of versioned jsons.")
+    # else:
+    #     existing_df = pd.DataFrame()
+    #     existing_animals = set()
+    #     print("No existing plan found. Please run the viral agent assignment command for this rat before proceeding with this one.")
+
+    # label = agent['viral_aliquot']['label']
 
     ts0=iso_now()
     lbl = br/"labels"/f"{animal}_VIRAL_{label}.txt"

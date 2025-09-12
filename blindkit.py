@@ -399,11 +399,6 @@ def cmd_plan_physiology(a):
     hashed_seed = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16) % (10 ** 8)
     random.seed(hashed_seed)
 
-    # Shuffle agents and assign
-    # agent_cycle = agent_list * ((len(unassigned_animals) // len(agent_list)) + 1)
-    # random.shuffle(agent_cycle)
-    # agent_assignments = agent_cycle[:len(unassigned_animals)]
-
     # Create balanced group assignment
     n = len(unassigned_animals)
     n_agents = len(unique_agents)
@@ -416,14 +411,6 @@ def cmd_plan_physiology(a):
     for agent, count in zip(unique_agents, agent_counts):
         balanced_agents.extend([agent] * count)
     random.shuffle(balanced_agents)
-
-    # Create new assignment rows
-    # new_rows = []
-    # for animal, agent in zip(unassigned_animals, balanced_agents):
-    #     new_rows.append({
-    #         "animal": animal,
-    #         "agent": agent
-    #     })
 
     used_labels = get_universe_labels(registry_path)
 

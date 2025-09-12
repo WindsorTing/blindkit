@@ -545,17 +545,59 @@ def cmd_plan_aliquot(a):
     hashed_seed = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16) % (10 ** 8)
     random.seed(hashed_seed)
 
-    # Create balanced group assignment
-    n = len(unassigned_animals)
-    n_virus = len(unique_virus)
-    base_count = n // n_virus
-    remainder = n % n_virus
+    # # Create balanced group assignment
+    # n = len(unassigned_animals)
+    # n_virus = len(unique_virus)
+    # base_count = n // n_virus
+    # remainder = n % n_virus
 
-    # Create balanced virus list
-    virus_counts = [base_count + (1 if i < remainder else 0) for i in range(n_virus)]
+    # # Create balanced virus list
+    # virus_counts = [base_count + (1 if i < remainder else 0) for i in range(n_virus)]
+    # balanced_virus = []
+    # for virus, count in zip(unique_virus, virus_counts):
+    #     balanced_virus.extend([virus] * count)
+    # random.shuffle(balanced_virus)
+
+    # --- Ratio-based assignment with explicit favored agent and minimum safeguard ---
+
+    favored_virus = "Cre-DREADD-mCherry"
+    ratio = (3, 1)
+
+    n = len(unassigned_animals)
+
+    favored_weight, other_weight = ratio
+    total_parts = favored_weight + other_weight
+
+    # Count for favored agent (initial calculation)
+    # Use floor so rounding favors the non-favored group (e.g., N=10 → 7/3, not 8/2)
+    n_favored = (n * favored_weight) // total_parts
+    n_other = n - n_favored
+
+    # Safeguard: ensure at least 1 non-favored animal if N >= 4
+    if n >= 4 and n_other == 0:
+        n_other = 1
+        n_favored = n - n_other
+
+    # Build counts dict
+    virus_counts = {favored_virus: n_favored}
+    other_virus = [a for a in unique_virus if a != favored_virus]
+
+    # If only one other agent, assign all remainder to it
+    if len(other_virus) == 1:
+        virus_counts[other_virus[0]] = n_other
+    else:
+        # Distribute across multiple non-favored agents
+        per_other = n_other // len(other_virus)
+        remainder = n_other % len(other_virus)
+        for i, virus in enumerate(other_virus):
+            virus_counts[virus] = per_other + (1 if i < remainder else 0)
+
+    # Build assignment list
     balanced_virus = []
-    for virus, count in zip(unique_virus, virus_counts):
+    for virus, count in virus_counts.items():
         balanced_virus.extend([virus] * count)
+
+    # Shuffle for randomness
     random.shuffle(balanced_virus)
 
     used_labels = get_universe_labels(registry_path)

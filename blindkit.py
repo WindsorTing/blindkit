@@ -351,7 +351,6 @@ def cmd_plan_physiology(a):
     blinder_dir = Path(a.blinder_root)
     plan_path = blinder_dir / "configs"
     registry_path = blinder_dir / "labels" / "registry.json"
-    # plan_path = blinder_dir / "configs"
     planning_dir = plan_path.parent
     versioned_json = blinder_dir / "configs" / f"physiology_plan_{seed}.json"
 
@@ -377,8 +376,6 @@ def cmd_plan_physiology(a):
             with open(plan_file) as f:
                 plan = json.load(f)
                 existing_animals.update(plan.get("assignments", {}).keys())
-        # existing_df = pd.read_csv(plan_path)
-        # assigned_animals = set(existing_df["animal"])
         print(f"Loaded existing plan with {len(existing_animals)} assigned animals.")
     else:
         existing_df = pd.DataFrame()
@@ -386,7 +383,6 @@ def cmd_plan_physiology(a):
         print("No existing plan found. Starting fresh.")
 
     # Determine unassigned animals
-    # unassigned_animals = sorted(registered_animals - assigned_animals)
     unassigned_animals = sorted(registered_animals - existing_animals)
     if not unassigned_animals:
         print("No unassigned animals found. Plan is up to date.")
@@ -399,30 +395,69 @@ def cmd_plan_physiology(a):
     hashed_seed = int(hashlib.sha256(hash_input.encode()).hexdigest(), 16) % (10 ** 8)
     random.seed(hashed_seed)
 
-    # Create balanced group assignment
-    n = len(unassigned_animals)
-    n_agents = len(unique_agents)
-    base_count = n // n_agents
-    remainder = n % n_agents
+    # # Create balanced group assignment
+    # n = len(unassigned_animals)
+    # n_agents = len(unique_agents)
+    # base_count = n // n_agents
+    # remainder = n % n_agents
 
-    # Create balanced agent list
-    agent_counts = [base_count + (1 if i < remainder else 0) for i in range(n_agents)]
+    # # Create balanced agent list
+    # agent_counts = [base_count + (1 if i < remainder else 0) for i in range(n_agents)]
+    # balanced_agents = []
+    # for agent, count in zip(unique_agents, agent_counts):
+    #     balanced_agents.extend([agent] * count)
+    # random.shuffle(balanced_agents)
+
+    # --- Ratio-based assignment with explicit favored agent and minimum safeguard ---
+
+    favored_agent = "CNO"
+    ratio = (3, 1)
+
+    n = len(unassigned_animals)
+
+    favored_weight, other_weight = ratio
+    total_parts = favored_weight + other_weight
+
+    # Count for favored agent (initial calculation)
+    # Use floor so rounding favors the non-favored group (e.g., N=10 → 7/3, not 8/2)
+    n_favored = (n * favored_weight) // total_parts
+    n_other = n - n_favored
+
+    # Safeguard: ensure at least 1 non-favored animal if N >= 4
+    if n >= 4 and n_other == 0:
+        n_other = 1
+        n_favored = n - n_other
+
+    # Build counts dict
+    agent_counts = {favored_agent: n_favored}
+    other_agents = [a for a in unique_agents if a != favored_agent]
+
+    # If only one other agent, assign all remainder to it
+    if len(other_agents) == 1:
+        agent_counts[other_agents[0]] = n_other
+    else:
+        # Distribute across multiple non-favored agents
+        per_other = n_other // len(other_agents)
+        remainder = n_other % len(other_agents)
+        for i, agent in enumerate(other_agents):
+            agent_counts[agent] = per_other + (1 if i < remainder else 0)
+
+    # Build assignment list
     balanced_agents = []
-    for agent, count in zip(unique_agents, agent_counts):
+    for agent, count in agent_counts.items():
         balanced_agents.extend([agent] * count)
+
+    # Shuffle for randomness
     random.shuffle(balanced_agents)
 
     used_labels = get_universe_labels(registry_path)
 
     print("Current Universe Set of Used Labels from Registry: " + str(used_labels))
 
-    # unique_new_label = unique_label(used_labels, length=4, max_tries=100)
-
     assignments = {
         animal: {
             "physiology": {
                 "agent": agent,
-                # "label": f"{''.join(random.choices('ABCDEF0123456789', k=4))}"
                 "label": unique_label(used_labels, length=4, max_tries=100)
             }
         }

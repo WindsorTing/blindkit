@@ -408,63 +408,150 @@ def cmd_plan_physiology(a):
     #     balanced_agents.extend([agent] * count)
     # random.shuffle(balanced_agents)
 
-    # --- Ratio-based assignment with explicit favored agent and minimum safeguard ---
+    # # --- Ratio-based assignment with explicit favored agent and minimum safeguard ---
 
+    # favored_agent = "CNO"
+    # ratio = (3, 1)
+
+    # n = len(unassigned_animals)
+
+    # favored_weight, other_weight = ratio
+    # total_parts = favored_weight + other_weight
+
+    # # Count for favored agent (initial calculation)
+    # # Use floor so rounding favors the non-favored group (e.g., N=10 → 7/3, not 8/2)
+    # n_favored = (n * favored_weight) // total_parts
+    # n_other = n - n_favored
+
+    # # Safeguard: ensure at least 1 non-favored animal if N >= 4
+    # if n >= 4 and n_other == 0:
+    #     n_other = 1
+    #     n_favored = n - n_other
+
+    # # Build counts dict
+    # agent_counts = {favored_agent: n_favored}
+    # other_agents = [a for a in unique_agents if a != favored_agent]
+
+    # # If only one other agent, assign all remainder to it
+    # if len(other_agents) == 1:
+    #     agent_counts[other_agents[0]] = n_other
+    # else:
+    #     # Distribute across multiple non-favored agents
+    #     per_other = n_other // len(other_agents)
+    #     remainder = n_other % len(other_agents)
+    #     for i, agent in enumerate(other_agents):
+    #         agent_counts[agent] = per_other + (1 if i < remainder else 0)
+
+    # # Build assignment list
+    # balanced_agents = []
+    # for agent, count in agent_counts.items():
+    #     balanced_agents.extend([agent] * count)
+
+    # # Shuffle for randomness
+    # random.shuffle(balanced_agents)
+
+    # ---------- v6 cross-stage PHYSIOLOGY dependency on VIRAL ALIQUOT IDENTITY via CONFIGS SCAN ----------
     favored_agent = "CNO"
-    ratio = (3, 1)
+    ratio = (3, 1)  # keep your existing 3:1 logic
 
-    n = len(unassigned_animals)
+    # Build viral map from *all* configs/*.json
+    viral_map = _collect_viral_map_from_configs(blinder_dir)
 
-    favored_weight, other_weight = ratio
-    total_parts = favored_weight + other_weight
+    # Require viral assignment for every unassigned animal; otherwise exit gracefully
+    missing = [an for an in unassigned_animals if an not in viral_map]
+    if missing:
+        print("[!] Some animals lack viral aliquot assignments in configs/*.json:")
+        print("    ", missing)
+        print("[i] Please register these animals and/or run cmd_plan_aliquot before cmd_plan_physiology.")
+        return
 
-    # Count for favored agent (initial calculation)
-    # Use floor so rounding favors the non-favored group (e.g., N=10 → 7/3, not 8/2)
-    n_favored = (n * favored_weight) // total_parts
-    n_other = n - n_favored
+    # Partition by viral agent
+    dread = [an for an in unassigned_animals if viral_map.get(an) == "Cre-DREADD-mCherry"]
+    cre   = [an for an in unassigned_animals if viral_map.get(an) == "Cre-mCherry"]
+    other = [an for an in unassigned_animals if an not in dread and an not in cre]
 
-    # Safeguard: ensure at least 1 non-favored animal if N >= 4
-    if n >= 4 and n_other == 0:
-        n_other = 1
-        n_favored = n - n_other
+    def _counts_for_ratio(N: int, favored: str, others: list[str], ratio_pair=(3,1)) -> Dict[str,int]:
+        if N <= 0:
+            return {}
+        fw, ow = ratio_pair
+        total = fw + ow
+        n_fav = (N * fw) // total
+        n_oth = N - n_fav
+        # safeguard: ≥1 non-favored when cohort >= 4 (preserves existing rule)
+        if N >= 4 and n_oth == 0 and others:
+            n_oth = 1
+            n_fav = N - 1
+        counts = {favored: n_fav}
+        if not others:
+            return counts
+        if len(others) == 1:
+            counts[others[0]] = n_oth
+            return counts
+        per = n_oth // len(others)
+        rem = n_oth % len(others)
+        for i, ag in enumerate(others):
+            counts[ag] = per + (1 if i < rem else 0)
+        return counts
 
-    # Build counts dict
-    agent_counts = {favored_agent: n_favored}
-    other_agents = [a for a in unique_agents if a != favored_agent]
+    def _expand(counts: Dict[str,int]) -> list[str]:
+        bag = []
+        for ag, c in counts.items():
+            bag.extend([ag] * max(0, int(c)))
+        return bag
 
-    # If only one other agent, assign all remainder to it
-    if len(other_agents) == 1:
-        agent_counts[other_agents[0]] = n_other
-    else:
-        # Distribute across multiple non-favored agents
-        per_other = n_other // len(other_agents)
-        remainder = n_other % len(other_agents)
-        for i, agent in enumerate(other_agents):
-            agent_counts[agent] = per_other + (1 if i < remainder else 0)
+    other_agents = [ag for ag in unique_agents if ag != favored_agent]
 
-    # Build assignment list
-    balanced_agents = []
-    for agent, count in agent_counts.items():
-        balanced_agents.extend([agent] * count)
+    # Per-animal agent decisions, honoring cross-stage rules
+    chosen_agent: Dict[str, str] = {}
 
-    # Shuffle for randomness
-    random.shuffle(balanced_agents)
+    # (1) Cre-DREADD-mCherry → 3:1 randomization
+    if dread:
+        counts = _counts_for_ratio(len(dread), favored_agent, other_agents, ratio)
+        bag = _expand(counts)
+        random.shuffle(bag)
+        random.shuffle(dread)
+        for an, ag in zip(dread, bag):
+            chosen_agent[an] = ag
+
+    # (2) Cre-mCherry → always CNO
+    for an in cre:
+        chosen_agent[an] = favored_agent
+
+    # (3) Any other viral agent string → fall back to existing 3:1 behavior
+    if other:
+        counts = _counts_for_ratio(len(other), favored_agent, other_agents, ratio)
+        bag = _expand(counts)
+        random.shuffle(bag)
+        random.shuffle(other)
+        for an, ag in zip(other, bag):
+            chosen_agent[an] = ag
 
     used_labels = get_universe_labels(registry_path)
 
     print("Current Universe Set of Used Labels from Registry: " + str(used_labels))
 
-    assignments = {
-        animal: {
+    # assignments = {
+    #     animal: {
+    #         "physiology": {
+    #             "agent": agent,
+    #             "label": unique_label(used_labels, length=4, max_tries=100)
+    #         }
+    #     }
+    #     for animal, agent in zip(unassigned_animals, balanced_agents)
+    # }
+
+    # Attach blinded labels and emit final structure
+    assignments = {}
+    for animal in unassigned_animals:
+        agent = chosen_agent[animal]
+        assignments[animal] = {
             "physiology": {
                 "agent": agent,
                 "label": unique_label(used_labels, length=4, max_tries=100)
             }
         }
-        for animal, agent in zip(unassigned_animals, balanced_agents)
-    }
 
-    print("New Blinded Labels Generated with Collision Resistance.")
+    print("New Blinded Labels Generated with Collision Resistance and Cross-Stage Dependency.")
 
     output = {
         "seed": seed,
@@ -491,6 +578,47 @@ def cmd_plan_physiology(a):
     # print(f"Final agent distribution: {dict(Counter(full_plan['agent']))}")
 
 ALPHABET = "ABCDEF0123456789"
+
+def new_label(length=4):
+    return "".join(secrets.choice(ALPHABET) for _ in range(length))
+
+# ---------- v6: cross-stage helpers ----------
+def _collect_viral_map_from_configs(br: Path) -> Dict[str, str]:
+    """
+    Scan ALL configs/*.json for viral assignments.
+    Later files (by mtime) override earlier ones.
+    Accepts shapes like:
+      {"assignments":{"rat001":{"virus":{"agent":"Cre-DREADD-mCherry","label":"AB12"}}}}
+      {"assignments":{"rat001":{"viral_aliquot":{"agent":"Cre-mCherry","label":"CD34"}}}}
+    Returns { animal_id: agent_string }.
+    """
+    cfg = br / "configs"
+    if not cfg.exists():
+        return {}
+    files = sorted(cfg.glob("*.json"), key=lambda p: p.stat().st_mtime)
+    vmap: Dict[str, str] = {}
+    for p in files:
+        try:
+            with p.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        assignments = data.get("assignments", {})
+        if not isinstance(assignments, dict):
+            continue
+        for an, rec in assignments.items():
+            if not isinstance(rec, dict):
+                continue
+            block = rec.get("virus") or rec.get("viral_aliquot") or {}
+            agent = None
+            if isinstance(block, dict):
+                agent = block.get("agent")
+            # tolerate flat form (rare): {"assignments":{"rat001":{"agent":"..."}}}
+            if agent is None:
+                agent = rec.get("agent")
+            if isinstance(agent, str) and agent.strip():
+                vmap[str(an)] = agent.strip()
+    return vmap
 
 def new_label(length=4):
     return "".join(secrets.choice(ALPHABET) for _ in range(length))

@@ -23,7 +23,6 @@ from pathlib import Path
 from collections import Counter
 from PIL import Image, ImageDraw, ImageFont
 import math
-import segno
 import secrets, string
 from typing import Any, Dict, Iterable, Set
 
@@ -1504,11 +1503,6 @@ def cmd_overlay_aliquot(a):
         img.save(out, dpi=(DPI, DPI))
         print(f"Saved {out} — exact size: {TARGET_CM} cm × {TARGET_CM} cm at {DPI} dpi ({target_px}×{target_px}px)")
 
-        # # payload=json.dumps({animal:label}, sort_keys=True)
-        # payload= str(animal) + "::" + str(label)
-        # # viral_micro_qr = segno.make_micro(payload)
-        # # viral_micro_qr.save(br/"labels"/f"{animal}_VIRAL_{label}.png")
-        # qrcode.make(payload).save(br/"labels"/f"{animal}_VIRAL_{label}.png")
     append_blinder_registry(br, {"ts_overlay": ts0,"animal":animal,"stage":"VIRAL","session":None,
                                  "syringe_id":aliquot_id,
                                  "label_id":label,"status":"issued","assignment":agent})

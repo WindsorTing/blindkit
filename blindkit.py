@@ -219,41 +219,76 @@ def unique_label(used: set[str], prefix="syr", length=6, max_tries=100) -> str:
     raise RuntimeError("Could not generate a unique label; expand namespace")
 
 def cmd_plan_behavior(a): # needs stress testing
-    blinder_dir = Path(a.blinder)
+    blinder_dir = Path(a.blinder_root)
     planning_dir = blinder_dir / "configs"
+    plan_path = blinder_dir / "configs"
     planning_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load registered animals
-    registered_df = pd.read_json(a.animals, lines=True)
+    # # Load registered animals
+    # registered_df = pd.read_json(a.reg_animals, lines=True)
+    # registered_animals = set(registered_df["animal"])
+
+    # Load registered animals with the latest data structure
+    registered_df = pd.read_json(a.reganimals_list, lines=True)
     registered_animals = set(registered_df["animal"])
 
-    # Load agent list
-    with open(a.agents) as f:
-        agent_list = [line.strip() for line in f if line.strip()]
-        unique_agents = sorted(set(agent_list))
-        seed = a.seed
+    # Load agent list from text file (one agent per line)
+    agent_list = a.agents
+    seed = a.date_seed
 
-    if len(unique_agents) != 2:
-        print("Error: You must provide exactly two agents for 2x2 design.")
+    unique_agents = sorted(set(agent_list))
+    if len(unique_agents) != 2 : 
+        print("Error: you must provide exactly two agents for 2x2 design. Please rerun the command.")
         return
+
+    # # Load agent list
+    # with open(a.agents) as f:
+    #     agent_list = [line.strip() for line in f if line.strip()]
+    #     unique_agents = sorted(set(agent_list))
+    #     seed = a.seed
+
+    # if len(unique_agents) != 2:
+    #     print("Error: You must provide exactly two agents for 2x2 design.")
+    #     return
 
     # Compose versioned output path based on seed
     versioned_json = planning_dir / f"behavior_plan_{seed}.json"
 
-    # Load previous assigned animals
-    existing_animals = set()
-    for plan_file in planning_dir.glob("behavior_plan_*.json"):
-        with open(plan_file) as f:
-            plan = json.load(f)
-    existing_animals.update(plan.get("assignments", {}).keys())
+    # # Load previous assigned animals
+    # existing_animals = set()
+    # for plan_file in planning_dir.glob("behavior_plan_*.json"):
+    #     with open(plan_file) as f:
+    #         plan = json.load(f)
+    # existing_animals.update(plan.get("assignments", {}).keys())
 
-    # Filter only unassigned animals
+    # # Filter only unassigned animals
+    # unassigned_animals = sorted(registered_animals - existing_animals)
+    # if not unassigned_animals:
+    #     print("No unassigned animals found. All have been previously planned.")
+    #     return
+
+    # print(f"Planning {len(unassigned_animals)} new animals for seed {seed}: {unassigned_animals}")
+
+    # Load assigned animal list from versioned jsons if available
+    if os.path.exists(planning_dir):
+        existing_animals = set()
+        for plan_file in plan_path.glob("behavior_plan_*.json"):
+            with open(plan_file) as f:
+                plan = json.load(f)
+                existing_animals.update(plan.get("assignments", {}).keys())
+        print(f"Loaded existing plan with {len(existing_animals)} assigned animals.")
+    else:
+        existing_df = pd.DataFrame()
+        existing_animals = set()
+        print("No existing plan found. Starting fresh.")
+
+    # Determine unassigned animals
     unassigned_animals = sorted(registered_animals - existing_animals)
     if not unassigned_animals:
-        print("No unassigned animals found. All have been previously planned.")
+        print("No unassigned animals found. Plan is up to date.")
         return
 
-    print(f"Planning {len(unassigned_animals)} new animals for seed {seed}: {unassigned_animals}")
+    print(f"Found {len(unassigned_animals)} unassigned animals: {unassigned_animals}")
 
     # Hash-based seed
     hash_input = "".join(sorted(unassigned_animals)) + "".join(unique_agents) + str(seed)
@@ -1856,7 +1891,7 @@ def main():
     p=sp.add_parser("register-animal"); p.add_argument("--blinder-root", required=True); p.add_argument("--animal-id", required=True); p.add_argument("--sex", required=True); p.add_argument("--weight", required=True); p.set_defaults(func=cmd_register_animal)
 
     # Planning
-    p=sp.add_parser("plan-behavior"); p.add_argument("--blinder-root", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.set_defaults(func=cmd_plan_behavior)
+    p=sp.add_parser("plan-behavior"); p.add_argument("--blinder-root", required=True); p.add_argument("--reganimals-list", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.set_defaults(func=cmd_plan_behavior)
     p=sp.add_parser("plan-physiology"); p.add_argument("--blinder-root", required=True); p.add_argument("--reganimals-list", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--agents", nargs=2, required=True); p.add_argument("--legacy-json"); p.add_argument("--legacy-csv"); p.add_argument("--allow-unregistered", action="store_true"); p.set_defaults(func=cmd_plan_physiology)
     p=sp.add_parser("plan-aliquot"); p.add_argument("--blinder-root", required=True); p.add_argument("--reganimals-list", required=True); p.add_argument("--date-seed", required=True); p.add_argument("--brainstem-virus", nargs=2, required=True); p.set_defaults(func=cmd_plan_aliquot)
 

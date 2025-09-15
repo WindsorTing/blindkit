@@ -460,9 +460,9 @@ def cmd_plan_physiology(a):
     # Require viral assignment for every unassigned animal; otherwise exit gracefully
     missing = [an for an in unassigned_animals if an not in viral_map]
     if missing:
-        print("[!] Some animals lack viral aliquot assignments in configs/*.json:")
+        print("[!] Some registered animals lack viral aliquot assignments in configs/*.json:")
         print("    ", missing)
-        print("[i] Please register these animals and/or run cmd_plan_aliquot before cmd_plan_physiology.")
+        print("[i] Please run cmd_plan_aliquot for these animals before cmd_plan_physiology.")
         return
 
     # Partition by viral agent
@@ -698,7 +698,11 @@ def cmd_plan_aliquot(a):
 
     # Count for favored agent (initial calculation)
     # Use floor so rounding favors the non-favored group (e.g., N=10 → 7/3, not 8/2)
-    n_favored = (n * favored_weight) // total_parts
+    # n_favored = (n * favored_weight) // total_parts
+    # n_other = n - n_favored
+
+    # Count for favored agent (rounding up instead of flooring)
+    n_favored = math.ceil(n * favored_weight / total_parts) 
     n_other = n - n_favored
 
     # Safeguard: ensure at least 1 non-favored animal if N >= 4

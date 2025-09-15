@@ -1,4 +1,4 @@
-# BLINDKIT v6.0 — Blinder Quick Start
+# BLINDKIT v6 — Blinder Quick Start
 
 > Your task is to manage the BLINDER github repo on your laptop; the experimenter does not have access to it until UNBLINDING.
 > After every relevant change below at step 1 onwards, please push a new commit to this private repository, for post-hoc audit.

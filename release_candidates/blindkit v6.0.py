@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BlindKit — Integrated two-root blinding toolkit with comprehensive audit logging,
+BlindKit v6.0 — Integrated two-root blinding toolkit with comprehensive audit logging,
 legacy-aware physiology planning, and `init-dual --only` mode.
 
 Features

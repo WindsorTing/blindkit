@@ -348,7 +348,7 @@ def _load_legacy_assignments(path: str, allowed_agents):
             legacy[an] = ag
     return legacy
 
-DOMAINS = ("viral_aliquot", "physiology")
+# DOMAINS = ("viral_aliquot", "physiology")
 
 def _extract_domain_labels(assignment: Dict[str, Any]) -> Iterable[str]:
     """Yield labels from known domains inside an 'assignment' block."""
@@ -359,19 +359,96 @@ def _extract_domain_labels(assignment: Dict[str, Any]) -> Iterable[str]:
             if isinstance(lbl, str):
                 yield lbl
 
+DOMAINS = ("physiology", "behavior", "virus")
+
 def get_universe_labels(registry_path: Path) -> set[str]:
     """
-    Return the full universe of labels across all animals, entries, and domains.
+    Return the full universe of labels across aliquot, behavior, and physiology
+    by scanning every *.json / *.jsonl file under registry_path (recursively).
     """
-    with registry_path.open("r") as f:
-        data = json.load(f)
-
     labels: Set[str] = set()
-    for entry in data.get("entries", []):
-        assignment = entry.get("assignment", {})
-        if isinstance(assignment, dict):
-            labels.update(_extract_domain_labels(assignment))
+    if not registry_path.exists():
+        print("[!] Registry Path Not Found. Collision Resistance May not be Accurate.")
+        return labels
+
+    files = (
+        list(registry_path.rglob("*.json")) +
+        list(registry_path.rglob("*.jsonl"))
+        if registry_path.is_dir() else [registry_path]
+    )
+
+    for fpath in files:
+        try:
+            if fpath.suffix.lower() == ".jsonl":
+                with fpath.open("r", encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        _extract_labels_from_obj(obj, labels)
+            else:
+                with fpath.open("r", encoding="utf-8") as fh:
+                    try:
+                        data = json.load(fh)
+                    except json.JSONDecodeError:
+                        continue
+                _extract_labels_from_obj(data, labels)
+        except OSError:
+            # unreadable file; skip
+            continue
+
     return labels
+
+
+def _extract_labels_from_obj(obj: Any, labels: Set[str]) -> None:
+    """
+    Handle a few realistic shapes:
+    - {"assignments": { "WT-123": { "physiology": {"label": "...."}, ... }, ... } }
+    - {"entries": [ { "assignments": {...}}, ... ] }
+    - And tolerate list-at-top structures.
+    """
+    if isinstance(obj, dict):
+        # Direct assignments block
+        if "assignments" in obj and isinstance(obj["assignments"], dict):
+            _extract_labels_from_assignments(obj["assignments"], labels)
+
+        # Some files wrap in "entries": [...]
+        if "entries" in obj and isinstance(obj["entries"], list):
+            for entry in obj["entries"]:
+                if isinstance(entry, dict) and "assignments" in entry and isinstance(entry["assignments"], dict):
+                    _extract_labels_from_assignments(entry["assignments"], labels)
+
+        # Fallthrough: sometimes the whole file *is* the assignments dict
+        # e.g., { "WT-123": { "physiology": {...} }, ... }
+        if all(isinstance(v, dict) for v in obj.values()):
+            if any(k in DOMAINS for v in obj.values() for k in (v.keys() if isinstance(v, dict) else [])):
+                _extract_labels_from_assignments(obj, labels)
+
+    elif isinstance(obj, list):
+        for item in obj:
+            _extract_labels_from_obj(item, labels)
+
+
+def _extract_labels_from_assignments(assignments: Dict[str, Any], labels: Set[str]) -> None:
+    """
+    assignments: { animal_id: { domain: { ... "label": "XXXX", ... }, ... }, ... }
+    """
+    for animal_id, per_animal in assignments.items():
+        if not isinstance(per_animal, dict):
+            continue
+        for domain in DOMAINS:
+            block = per_animal.get(domain)
+            if not isinstance(block, dict):
+                continue
+            # Common key names for labels
+            for key in ("label", "syringe_label", "agent_label"):
+                val = block.get(key)
+                if isinstance(val, str) and val:
+                    labels.add(val)
 
 def unique_label(used: set[str], length=4, max_tries=100) -> str:
     for _ in range(max_tries):
@@ -385,7 +462,7 @@ def cmd_plan_physiology(a):
     seed = a.date_seed
     blinder_dir = Path(a.blinder_root)
     plan_path = blinder_dir / "configs"
-    registry_path = blinder_dir / "labels" / "registry.json"
+    registry_path = blinder_dir / "configs"
     planning_dir = plan_path.parent
     versioned_json = blinder_dir / "configs" / f"physiology_plan_{seed}.json"
 
@@ -586,7 +663,7 @@ def cmd_plan_physiology(a):
             }
         }
 
-    print("New Blinded Labels Generated with Collision Resistance and Cross-Stage Dependency.")
+    print("New Blinded Labels Generated with Collision Resistance and Cross-Stage Dependency between Viral Aliquot and Physiology.")
 
     output = {
         "seed": seed,
@@ -662,7 +739,7 @@ def cmd_plan_aliquot(a):
     seed = a.date_seed
     blinder_dir = Path(a.blinder_root)
     plan_path = blinder_dir / "configs"
-    registry_path = blinder_dir / "labels" / "registry.json"
+    registry_path = blinder_dir / "configs"
     planning_dir = plan_path.parent
     versioned_json = blinder_dir / "configs" / f"brainstem_viral_aliquot_plan_{seed}.json"
 

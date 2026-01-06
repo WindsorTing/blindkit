@@ -1,8 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+# Copyright (c) 2026 Windsor Kwan-Chun Ting, PhD.
+
+# This file is part of BlindKit.
+
+# BlindKit is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 3
+# as published by the Free Software Foundation.
+
+# BlindKit is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
 """
-BlindKit — Integrated two-root blinding toolkit with comprehensive audit logging,
-legacy-aware physiology planning, and `init-dual --only` mode.
+BlindKit — Integrated two-root blinding and randomization toolkit with comprehensive audit logging,
+legacy-aware planning, and `init-dual --only` mode.
 
 Features
 - Two-root model: BLINDER (keys, maps) and EXPERIMENTER (blinded artifacts).
@@ -12,7 +25,6 @@ Features
 - Label overlays for behavior/physiology/aliquot; optional QR payloads.
 - Injection receipts; reconcile back to overlays.
 - Post-hoc unblinding bundle with manifest & reconciliation report
-
 """
 
 import argparse, csv, datetime, hashlib, json, os, pathlib, random, re, shutil, sys, zipfile, glob

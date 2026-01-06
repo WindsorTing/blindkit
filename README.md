@@ -19,9 +19,7 @@ A general guide and one specifically for the experimentalist is forthcoming.
 Blindkit is still under active development, and the code is presented as is, with no warranty or guarantee of accuracy. 
 Any user should verify the source performs what they want before using this code for production or real experiments.
 
-## COPYRIGHT
-
-Copyright Windsor Kwan-Chun Ting, 2026
+Copyright (c) 2026 Windsor Kwan-Chun Ting, PhD.
 
 ## LICENSE
 

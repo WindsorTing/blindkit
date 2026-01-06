@@ -3,7 +3,7 @@
 **Blindkit** was written to help the bench neuroscientist perform blinded,
 random assignment of experimental and control groups for preclinical studies, a step towards more rigorous science.
 
-It is a code framework which solves three operational gaps that are often overlooked or informally done in practice:
+It is a code framework which solves three operational gaps that are often overlooked or informally implemented in practice:
 1. Reproducible, programmatic random assignment into experimental and control groups, either with a 50:50 split or a custom bias
 2. Generation of idempotent, unique alphanumeric blinding codes which eliminates duplication and reduces human error
 3. Full end-to-end auditability post-unblinding with timestamps of each step.

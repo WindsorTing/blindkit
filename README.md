@@ -5,7 +5,7 @@ random assignment of experimental and control groups for preclinical studies, a 
 
 It is a code framework which solves three operational gaps that are often overlooked or informally done in practice:
 1. Reproducible, programmatic random assignment into experimental and control groups, either with a 50:50 split or a custom bias
-2. Generation of idempotent, unique alphanumeric blinding codes which reduces the odds of duplication and human error
+2. Generation of idempotent, unique alphanumeric blinding codes which eliminates duplication and reduces human error
 3. Full end-to-end auditability post-unblinding with timestamps of each step.
 
 The core requirements for the experimentalist are:

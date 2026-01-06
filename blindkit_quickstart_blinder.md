@@ -2,12 +2,11 @@
 
 > Your task is to manage the BLINDER github repo on your laptop; the experimenter does not have access to it until UNBLINDING.
 > After every relevant change below at step 1 onwards, please push a new commit to this private repository, for post-hoc audit.
-> Thank you!
 
 ## Step 0: Install Software Dependencies
 A: Download Github Desktop and install the client<br>
 B: Create or log into your Github Account<br>
-C: Create a private repository called "reticulospinal_inhibition_blinder"<br>
+C: Create a private repository called "studyname_blinder"<br>
 D: Clone repository to a local directory<br>
 
 E: Python 3.0+<br>
@@ -23,48 +22,39 @@ Open the command line and change directory to the local directory under Git Cont
 
 Create only the blinder tree:
 ```bash
-python blindkit.py init-dual --study-id reticulospinal_inhibition_BLINDER --blinder-root "blinder folder path" --only blinder
+python blindkit.py init-dual --study-id study_name --blinder-root "blinder folder path" --only blinder
 ```
 
 ## Step 2: Register Animals
 ```bash
-python blindkit.py register-animal --blinder-root "blinder folder path" --animal-id RAT001 --sex F --weight 230g
+python blindkit.py register-animal --blinder-root "blinder folder path" --animal-id RAT001 --sex F --weight 300g
 # Repeat per animal - ok to register groups of new rats with repeated command runs.
 # Idempotent - repeat attempts to register the same animal name are skipped.
 ```
 
 ## Step 3: Random Assignment (Idempotent) and Generate Codes
 
-### A: Brainstem Viral Aliquot (3:1 seeded bias towards Cre-DREADD-mCherry)
+### A: Viral Aliquot (3:1 seeded bias towards Experimental Virus)
 ```bash
 # This should be run only after two or more new animals have been registered using the above command, generally with cohorts of 4 or 5 new animals.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
 
-python blindkit.py plan-aliquot --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --brainstem-virus Cre-DREADD-mCherry Cre-mCherry
+python blindkit.py plan-aliquot --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --virus experimental_virus control_virus
 
 # Please use 24h time format for HHMM. This generates unique seeds for reproducibility.
 ```
 
-<!-- ### B: Behavior (2×A, 2×B per animal subset)
-```bash
-python blindkit.py plan-behavior --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline -->
-
-
-### C: Terminal Physiology (3:1 seeded bias towards CNO)
+### B: Terminal Physiology Agent (3:1 seeded bias towards Experimental Agent (Clozapine N Oxide, or other ligand))
 ```bash
 # This should be run only after two or more new animals have been registered using the above command, generally with cohorts of 4 or 5 new animals.
 # Only newly registered, unassigned animals are randomized at runtime. Previous assignments are persistent.
 # Newly generated label candidates are unique by comparison with set of existing labels and deterministically reproducible via hashed seeds in versioned jsons.
-# Cross-stage dependency is now integrated - seeded bias exists for Cre-DREADD-mCherry animals only; animals with Cre-mCherry receive CNO exclusively
+# Cross-stage dependency is now integrated - seeded bias exists for experimental_virus animals only; animals with control_virus receive active_agent exclusively
 
-python blindkit.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents CNO saline
+python blindkit.py plan-physiology --blinder-root "blinder folder path" --reganimals-list "blinder folder path/configs/animals.jsonl" --date-seed YYYYMMDDHHMM --agents active_agent control_agent
 
 # Please use 24h time format for HHMM. This generates unique seeds for reproducibility.
 ```
-
-<!-- 
-# Behavior (prompts for animal, session 1-4, base syringe ID)
-# python blindkit.py overlay-behavior --blinder-root ./study_X_blinder -->
 
 ## Step 4: Generate Blinded Label Overlays from Assigned Codes
 ```bash

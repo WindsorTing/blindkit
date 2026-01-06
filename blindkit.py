@@ -10,11 +10,9 @@ Features
 - Behavior planning (A/B per animal with 4 sessions → 2xA/2xB randomized per animal).
 - Physiology planning (50/50 cohort; legacy-aware via --legacy-csv/--legacy-json).
 - Label overlays for behavior/physiology/aliquot; optional QR payloads.
-- Injection receipts with optional photo hashing; reconcile back to overlays.
-- Anatomy blinding (metadata stripped, INDEX M-N order preserved, SHA-256 + dHash), sealed ZIP + manifests.
-- Provenance recording for legitimate image edits.
-- Post-hoc unblinding bundle with manifest & reconciliation report; verify command.
-- Audit viewer: filter audit JSONL by action/animal/stage/time/grep/tail.
+- Injection receipts; reconcile back to overlays.
+- Post-hoc unblinding bundle with manifest & reconciliation report
+
 """
 
 import argparse, csv, datetime, hashlib, json, os, pathlib, random, re, shutil, sys, zipfile, glob

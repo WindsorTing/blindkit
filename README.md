@@ -1,4 +1,4 @@
-## README
+## BLINDKIT
 
 **Blindkit** was written to help the bench neuroscientist perform blinded,
 random assignment of experimental and control groups for preclinical studies, a step towards more rigorous science.
